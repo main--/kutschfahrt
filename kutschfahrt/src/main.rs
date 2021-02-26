@@ -29,6 +29,34 @@ Michel de Molay
 Sir Henry Sinclair
 */
 
+/// A perspective is like `State` but contanis only information
+/// that a particular player is allowed to see.
+#[derive(Debug, Serialize)]
+struct Perspective {
+    you: PlayerState,
+    your_player_index: usize,
+    players: Vec<PerspectivePlayer>,
+
+    item_stack: usize,
+    turn: PerspectiveTurnState,
+}
+#[derive(Debug, Serialize)]
+struct PerspectivePlayer {
+    player: Player,
+    job: Option<Job>,
+    items: usize,
+}
+#[derive(Debug, Serialize)]
+enum PerspectiveTurnState {
+    TurnStart { player: Player },
+    GameOver { winner: Faction },
+    TradePending { offerer: Player, target: Player, item: Option<Item> },
+    ResolvingTradeTrigger { offerer: Player, target: Player, trigger: TradeTriggerState }, // for sextant, item selections are cleared
+    Attacking { attacker: Player, defender: Player, state: AttackState }, // AttackState info ís always public
+}
+
+
+
 #[derive(Debug, Serialize)]
 struct GameState {
     players: IndexMap<Player, PlayerState>,
@@ -40,7 +68,7 @@ struct State {
     game: GameState,
     turn: TurnState,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct PlayerState {
     faction: Faction,
     job: Job,
@@ -109,7 +137,7 @@ enum TurnState {
 
     Crashed,
 }
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 enum AttackState {
     WaitingForPriest,
     DeclaringSupport(HashMap<Player, AttackSupport>),
@@ -132,12 +160,12 @@ enum AttackWinner {
     Attacker,
     Defender,
 }
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 struct Buff {
     user: Player,
     source: BuffSource,
 }
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "snake_case")]
 enum BuffSource  {
     Item(Item),
@@ -151,7 +179,7 @@ enum AttackSupport {
     Abstain,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 enum TradeTriggerState {
     Priviledge,
     Monocle,
@@ -445,6 +473,36 @@ impl State {
                     .map(|(((&player, item), &mut job), &mut faction)| (player, PlayerState { faction, job, job_is_visible: false, items: vec![item] })).collect(),
             },
             turn: TurnState::WaitingForQuickblink(players[0]),
+        }
+    }
+    fn perspective(&self, p: Player) -> Perspective {
+        use PerspectiveTurnState::*;
+        let turn = match &self.turn {
+            &TurnState::WaitingForQuickblink(player) => TurnStart { player },
+            &TurnState::GameOver { winner } => GameOver { winner },
+            &TurnState::TradePending { offerer, target, item } if target == p => TradePending { offerer, target, item: Some(item) },
+            &TurnState::TradePending { offerer, target, .. } => TradePending { offerer, target, item: None },
+            &TurnState::ResolvingTradeTrigger { offerer, target, ref trigger, .. } => {
+                let trigger = match trigger {
+                    TradeTriggerState::Sextant { .. } =>
+                        TradeTriggerState::Sextant { item_selections: HashMap::new() },
+                    t => t.clone(),
+                };
+                ResolvingTradeTrigger { offerer, target, trigger }
+            }
+            &TurnState::Attacking { attacker, defender, ref state } => Attacking { attacker, defender, state: state.clone() },
+            TurnState::Crashed => unreachable!(),
+        };
+        Perspective {
+            you: self.game.players[&p].clone(),
+            your_player_index: self.game.players.get_index_of(&p).unwrap(),
+            players: self.game.players.iter().map(|(&k, v)| PerspectivePlayer {
+                player: k,
+                job: if v.job_is_visible { Some(v.job) } else { None },
+                items: v.items.len(),
+            }).collect(),
+            item_stack: self.game.item_stack.len(),
+            turn,
         }
     }
 }
