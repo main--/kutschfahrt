@@ -5,12 +5,11 @@ use std::mem;
 use std::iter;
 
 use indexmap::IndexMap;
-use serde_json;
 use serde_derive::Serialize;
 use rand::prelude::*;
 
 #[derive(Debug, Serialize, PartialEq, Eq, Hash, Clone, Copy)]
-enum Player {
+pub enum Player {
     Gundla,
     Sarah,
     Marie,
@@ -32,7 +31,7 @@ Sir Henry Sinclair
 /// A perspective is like `State` but contanis only information
 /// that a particular player is allowed to see.
 #[derive(Debug, Serialize)]
-struct Perspective {
+pub struct Perspective {
     you: PlayerState,
     your_player_index: usize,
     players: Vec<PerspectivePlayer>,
@@ -41,13 +40,13 @@ struct Perspective {
     turn: PerspectiveTurnState,
 }
 #[derive(Debug, Serialize)]
-struct PerspectivePlayer {
+pub struct PerspectivePlayer {
     player: Player,
     job: Option<Job>,
     items: usize,
 }
 #[derive(Debug, Serialize)]
-enum PerspectiveTurnState {
+pub enum PerspectiveTurnState {
     TurnStart { player: Player },
     GameOver { winner: Faction },
     TradePending { offerer: Player, target: Player, item: Option<Item> },
@@ -58,25 +57,25 @@ enum PerspectiveTurnState {
 
 
 #[derive(Debug, Serialize)]
-struct GameState {
+pub struct GameState {
     players: IndexMap<Player, PlayerState>,
     item_stack: Vec<Item>,
     job_stack: Vec<Job>,
 }
 #[derive(Debug, Serialize)]
-struct State {
+pub struct State {
     game: GameState,
-    turn: TurnState,
+    pub turn: TurnState,
 }
 #[derive(Debug, Serialize, Clone)]
-struct PlayerState {
+pub struct PlayerState {
     faction: Faction,
     job: Job,
     job_is_visible: bool,
     items: Vec<Item>,
 }
 #[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
-enum Item {
+pub enum Item {
     Key,
     Goblet,
     BagKey, // trigger: bag
@@ -96,7 +95,7 @@ enum Item {
     CoatOfArmorOfTheLoge
 }
 #[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
-enum Job {
+pub enum Job {
     Thug,
     GrandMaster,
     Bodyguard,
@@ -109,13 +108,13 @@ enum Job {
     Clairvoyant,
 }
 #[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
-enum Faction {
+pub enum Faction {
     Order,
     Brotherhood,
     //Traitor,
 }
 #[derive(Debug, Serialize, PartialEq, Eq)]
-enum TurnState {
+pub enum TurnState {
     WaitingForQuickblink(Player),
     GameOver { winner: Faction },
     TradePending {
@@ -138,7 +137,7 @@ enum TurnState {
     Crashed,
 }
 #[derive(Debug, Serialize, PartialEq, Eq, Clone)]
-enum AttackState {
+pub enum AttackState {
     WaitingForPriest,
     DeclaringSupport(HashMap<Player, AttackSupport>),
     WaitingForHypnotizer(HashMap<Player, AttackSupport>),
@@ -156,31 +155,31 @@ enum AttackState {
     },
 }
 #[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
-enum AttackWinner {
+pub enum AttackWinner {
     Attacker,
     Defender,
 }
 #[derive(Debug, Serialize, PartialEq, Eq, Clone)]
-struct Buff {
+pub struct Buff {
     user: Player,
     source: BuffSource,
 }
 #[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "snake_case")]
-enum BuffSource  {
+pub enum BuffSource  {
     Item(Item),
     Job(Job),
 }
 #[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-enum AttackSupport {
+pub enum AttackSupport {
     Attack,
     Defend,
     Abstain,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq, Clone)]
-enum TradeTriggerState {
+pub enum TradeTriggerState {
     Priviledge,
     Monocle,
     Coat,
@@ -189,7 +188,7 @@ enum TradeTriggerState {
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
-enum Command {
+pub enum Command {
     Pass,
     AnnounceVictory { teammates: Vec<Player> },
 
@@ -211,7 +210,7 @@ enum Command {
 }
 
 #[derive(Debug)]
-enum CommandError {
+pub enum CommandError {
     NotYourTurn,
     InvalidCommandInThisContext,
     InvalidTargetPlayer,
@@ -235,7 +234,7 @@ impl GameState {
     }
 }
 impl State {
-    fn apply_command(&mut self, actor: Player, c: Command) -> Result<(), CommandError> {
+    pub fn apply_command(&mut self, actor: Player, c: Command) -> Result<(), CommandError> {
         let s = &mut self.game;
         self.turn = match mem::replace(&mut self.turn, TurnState::Crashed) {
             TurnState::Crashed => unreachable!(),
@@ -410,7 +409,7 @@ impl State {
         Ok(())
     }
 
-    fn new(mut players: Vec<Player>, rng: &mut impl Rng) -> State {
+    pub fn new(mut players: Vec<Player>, rng: &mut impl Rng) -> State {
         assert!(players.len() >= 3); // TODO: dreier spiel in sinnvoll
         // TODO: das vmtl falsch
         let mut start_items = [
@@ -507,48 +506,8 @@ impl State {
     }
 }
 
-fn main() {
-    /*
-    println!("{}", serde_json::to_string(&Command::Pass).unwrap());
-    println!("{}", serde_json::to_string(&Command::AnnounceVictory { teammates: vec![Player::Gundla, Player::Sarah] }).unwrap());
-    println!("{}", serde_json::to_string(&Command::DeclareSupport { support: AttackSupport::Attack }).unwrap());
-    println!("{}", serde_json::to_string(&Command::ItemOrJob { buff: None }).unwrap());
-    println!("{}", serde_json::to_string(&Command::ItemOrJob { buff: Some(BuffSource::Item(Item::Gloves)) }).unwrap());
-    println!("{}", serde_json::to_string(&Command::ItemOrJob { buff: Some(BuffSource::Job(Job::Bodyguard)) }).unwrap());
-    */
-    let mut rng = StdRng::seed_from_u64(42);
-    let mut state = State::new(vec![Player::Gundla, Player::Marie, Player::Zacharias, Player::Sarah].into_iter().collect(), &mut rng);
-    println!("{:#?}", state);
 
-    state.apply_command(Player::Marie, Command::Pass).unwrap();
 
-    state.apply_command(Player::Zacharias, Command::InitiateAttack { player: Player::Marie }).unwrap();
-    state.apply_command(Player::Marie, Command::UsePriest { priest: false }).unwrap();
-    state.apply_command(Player::Gundla, Command::DeclareSupport { support: AttackSupport::Abstain }).unwrap();
-    println!("{:#?}", state);
-    state.apply_command(Player::Sarah, Command::DeclareSupport { support: AttackSupport::Attack }).unwrap();
-    state.apply_command(Player::Zacharias, Command::Hypnotize { target: None }).unwrap();
-    state.apply_command(Player::Marie, Command::ItemOrJob { buff: None }).unwrap();
-    state.apply_command(Player::Gundla, Command::ItemOrJob { buff: None }).unwrap();
-    state.apply_command(Player::Zacharias, Command::ItemOrJob { buff: Some(BuffSource::Item(Item::PoisonRing)) }).unwrap();
-    state.apply_command(Player::Sarah, Command::ItemOrJob { buff: None }).unwrap();
-    state.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None }).unwrap();
-    state.apply_command(Player::Marie, Command::ItemOrJob { buff: None }).unwrap();
-    state.apply_command(Player::Gundla, Command::ItemOrJob { buff: None }).unwrap();
-    
-    state.apply_command(Player::Zacharias, Command::ClaimReward { steal_items: false }).unwrap();
-    state.apply_command(Player::Zacharias, Command::DoneLookingAtThings).unwrap();
-
-    state.apply_command(Player::Gundla, Command::OfferTrade { target: Player::Sarah, item: Item::BagKey }).unwrap();
-    state.apply_command(Player::Sarah, Command::RejectTrade).unwrap();
-
-    state.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Zacharias, item: Item::BagGoblet }).unwrap();
-    state.apply_command(Player::Zacharias, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
-
-    state.apply_command(Player::Marie, Command::AnnounceVictory { teammates: vec![] }).unwrap();
-
-    assert_eq!(state.turn, TurnState::GameOver { winner: Faction::Brotherhood });
-}
 
 #[cfg(test)]
 mod tests {
