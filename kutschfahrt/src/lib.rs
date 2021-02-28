@@ -113,7 +113,7 @@ pub enum Faction {
     Brotherhood,
     //Traitor,
 }
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub enum TurnState {
     WaitingForQuickblink(Player),
     GameOver { winner: Faction },
@@ -133,8 +133,6 @@ pub enum TurnState {
         defender: Player,
         state: AttackState,
     },
-
-    Crashed,
 }
 #[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub enum AttackState {
@@ -236,8 +234,7 @@ impl GameState {
 impl State {
     pub fn apply_command(&mut self, actor: Player, c: Command) -> Result<(), CommandError> {
         let s = &mut self.game;
-        self.turn = match mem::replace(&mut self.turn, TurnState::Crashed) {
-            TurnState::Crashed => unreachable!(),
+        self.turn = match self.turn.clone() {
             TurnState::WaitingForQuickblink(p) => {
                 if actor != p {
                     return Err(CommandError::NotYourTurn);
@@ -490,7 +487,6 @@ impl State {
                 ResolvingTradeTrigger { offerer, target, trigger }
             }
             &TurnState::Attacking { attacker, defender, ref state } => Attacking { attacker, defender, state: state.clone() },
-            TurnState::Crashed => unreachable!(),
         };
         Perspective {
             you: self.game.players[&p].clone(),
