@@ -58,10 +58,6 @@ async fn game_post<'a>(cmd: Json<GameCommand>, db: State<'a, SqlitePool>, id: St
             let players = sqlx::query_scalar!("SELECT player_character FROM game_players WHERE gameid = ?", id).fetch_all(&*db).await?;
             let players = players.into_iter().map(|x| x.parse().unwrap()).collect();
 
-            let mut players: Vec<_> = players;
-            players.push(Player::Zacharias);
-            players.push(Player::Sarah);
-
             let state = KutschfahrtState::new(players, &mut rand::thread_rng());
 
             let state = serde_json::to_string(&state)?;
