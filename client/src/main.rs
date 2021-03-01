@@ -53,6 +53,13 @@ async fn post_json<T: serde::Serialize>(path: &str, body: &T) {
     serde_json::from_str(&text).unwrap()*/
 }
 
+impl App {
+    fn view_game_item(&self, game: String) -> Html {
+        let game2 = game.clone();
+        let link = self.link.callback_once(move |e: yew::events::MouseEvent| { e.prevent_default(); Msg::GoToGame(Some(game2)) });
+        html! { <li><a onclick=link>{game}</a></li> }
+    }
+}
 impl Component for App {
     type Message = Msg;
     type Properties = ();
@@ -94,13 +101,22 @@ impl Component for App {
             Some(MyState::LoggedOut) => html! { <ybc::Button classes="is-black is-outlined" onclick=self.link.callback(|_| Msg::Login)>{"Login"}</ybc::Button> },
             Some(MyState::LoggedIn { .. }) => html! { <ybc::Button classes="is-black is-outlined" onclick=self.link.callback(|_| Msg::Logout)>{"Logout"}</ybc::Button> },
         };
+        let (my_games, logged_in) = match &self.my_state {
+            Some(MyState::LoggedIn { my_games }) => (my_games.clone(), true),
+            _ => (vec![], false),
+        };
+        let new_game = self.link.callback(move |e: yew::events::MouseEvent| {
+            e.prevent_default();
+            Msg::GoToGame(Some(uuid::Uuid::new_v4().to_string()))
+        });
         let content = match &self.current_game {
             None => html! {
                 <ybc::Section>
                     <ybc::Title>{"Your Games"}</ybc::Title>
                     <ybc::Content>
                         <ul>
-                            <li><a onclick=self.link.callback(|e: yew::events::MouseEvent| { e.prevent_default(); Msg::GoToGame(Some("stonks".to_owned())) })>{"stonks"}</a></li>
+                            {for my_games.into_iter().map(|g| self.view_game_item(g))}
+                            {if logged_in { html! { <li><a onclick=new_game>{"+ New Game"}</a></li> } } else { html! { {"Please log in."} } }}
                         </ul>
                     </ybc::Content>
                 </ybc::Section>
