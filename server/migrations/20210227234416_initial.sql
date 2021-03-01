@@ -1,5 +1,14 @@
--- Add migration script here
-CREATE TABLE stonks (
-	name varchar not null
+-- Schema v1
+CREATE TABLE game_players (
+    gameid text NOT NULL,
+    steamid bigint NOT NULL,
+    player_character text NOT NULL,
+
+    PRIMARY KEY(gameid, steamid)
+);
+
+CREATE TABLE game_state (
+    gameid text NOT NULL PRIMARY KEY,
+    state text NOT NULL
 );
 

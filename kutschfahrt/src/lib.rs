@@ -5,15 +5,20 @@ use std::mem;
 use std::iter;
 
 use indexmap::IndexMap;
-use serde_derive::Serialize;
+use serde_derive::{Serialize, Deserialize};
 use rand::prelude::*;
 
-#[derive(Debug, Serialize, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy, enum_utils::FromStr)]
 pub enum Player {
     Gundla,
     Sarah,
     Marie,
     Zacharias,
+}
+impl std::fmt::Display for Player {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 /*
 Marie Sauniére
@@ -30,7 +35,7 @@ Sir Henry Sinclair
 
 /// A perspective is like `State` but contanis only information
 /// that a particular player is allowed to see.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Perspective {
     you: PlayerState,
     your_player_index: usize,
@@ -39,13 +44,13 @@ pub struct Perspective {
     item_stack: usize,
     turn: PerspectiveTurnState,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PerspectivePlayer {
     player: Player,
     job: Option<Job>,
     items: usize,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum PerspectiveTurnState {
     TurnStart { player: Player },
     GameOver { winner: Faction },
@@ -56,25 +61,25 @@ pub enum PerspectiveTurnState {
 
 
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GameState {
     players: IndexMap<Player, PlayerState>,
     item_stack: Vec<Item>,
     job_stack: Vec<Job>,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct State {
     game: GameState,
     pub turn: TurnState,
 }
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PlayerState {
     faction: Faction,
     job: Job,
     job_is_visible: bool,
     items: Vec<Item>,
 }
-#[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Item {
     Key,
     Goblet,
@@ -94,7 +99,7 @@ pub enum Item {
     Tome, // trigger: trade occupation
     CoatOfArmorOfTheLoge
 }
-#[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Job {
     Thug,
     GrandMaster,
@@ -107,13 +112,13 @@ pub enum Job {
     Diplomat,
     Clairvoyant,
 }
-#[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Faction {
     Order,
     Brotherhood,
     //Traitor,
 }
-#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TurnState {
     WaitingForQuickblink(Player),
     GameOver { winner: Faction },
@@ -134,7 +139,7 @@ pub enum TurnState {
         state: AttackState,
     },
 }
-#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum AttackState {
     WaitingForPriest,
     DeclaringSupport(HashMap<Player, AttackSupport>),
@@ -152,23 +157,23 @@ pub enum AttackState {
         steal_items: bool,
     },
 }
-#[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum AttackWinner {
     Attacker,
     Defender,
 }
-#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Buff {
     user: Player,
     source: BuffSource,
 }
-#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum BuffSource  {
     Item(Item),
     Job(Job),
 }
-#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AttackSupport {
     Attack,
@@ -176,7 +181,7 @@ pub enum AttackSupport {
     Abstain,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TradeTriggerState {
     Priviledge,
     Monocle,
@@ -184,7 +189,7 @@ pub enum TradeTriggerState {
     Sextant { item_selections: HashMap<Player, Item> },
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum Command {
     Pass,
@@ -207,14 +212,20 @@ pub enum Command {
     DoneLookingAtThings,
 }
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum CommandError {
+    #[error("Not your turn")]
     NotYourTurn,
+    #[error("Invalid command in this context")]
     InvalidCommandInThisContext,
+    #[error("Invalid target player")]
     InvalidTargetPlayer,
+    #[error("You have already passed")]
     YouHaveAlreadyPassed,
+    #[error("Invalid steal command")]
     InvalidStealCommand,
 }
+
 
 impl GameState {
     fn next_player(&self, p: Player) -> Player {
@@ -430,7 +441,7 @@ impl State {
             Item::Sextant,
             Item::Coat,
             Item::Tome,
-            Item::CoatOfArmorOfTheLoge        
+            Item::CoatOfArmorOfTheLoge
         ];
         let mut jobs = vec![
             Job::Thug,
@@ -442,7 +453,7 @@ impl State {
             Job::Priest,
             Job::Hypnotist,
             Job::Diplomat,
-            Job::Clairvoyant,        
+            Job::Clairvoyant,
         ];
         let instances_per_faction = (players.len() + 1) / 2;
         let mut factions: Vec<_> = iter::repeat(Faction::Order).take(instances_per_faction)
@@ -471,7 +482,7 @@ impl State {
             turn: TurnState::WaitingForQuickblink(players[0]),
         }
     }
-    fn perspective(&self, p: Player) -> Perspective {
+    pub fn perspective(&self, p: Player) -> Perspective {
         use PerspectiveTurnState::*;
         let turn = match &self.turn {
             &TurnState::WaitingForQuickblink(player) => TurnStart { player },

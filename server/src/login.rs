@@ -5,7 +5,7 @@ use rocket::request::{Outcome, FromRequest};
 use steam_auth::{Verifier, Redirector};
 
 pub struct LoggedIn {
-    pub steamid: u64,
+    pub steamid: i64,
 }
 
 const USERID: &str = "userid";

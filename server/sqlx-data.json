@@ -1,0 +1,97 @@
+{
+  "db": "SQLite",
+  "0c9e91289591f723796618fbfdec2cc592b19a5ec9e62997038fbc206cc63ab7": {
+    "query": "SELECT player_character FROM game_players WHERE gameid = ?",
+    "describe": {
+      "columns": [
+        {
+          "name": "player_character",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Right": 1
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "4ed2b144a30dab5e621254ecc7587dabe7610e797a83607ac57b910d01c455c9": {
+    "query": "INSERT INTO game_players(gameid, steamid, player_character) VALUES (?, ?, ?)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Right": 3
+      },
+      "nullable": []
+    }
+  },
+  "612810933c4a72db9f68fc9e8bf7d2dda53740aca702fc1b5af8993e926fe0f5": {
+    "query": "DELETE FROM game_players WHERE gameid = ? AND steamid = ?",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Right": 2
+      },
+      "nullable": []
+    }
+  },
+  "6b76a21344a133f768f69effb9bdd25967d0d71233f8cdce6e10717665eaa9c0": {
+    "query": "SELECT state FROM game_state WHERE gameid = ?",
+    "describe": {
+      "columns": [
+        {
+          "name": "state",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Right": 1
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "ae98d57d2ef1f6aab79954ac7667f39d04239c75e896bec4b51a176cbb3b665f": {
+    "query": "INSERT INTO game_state(gameid, state) VALUES (?, ?)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Right": 2
+      },
+      "nullable": []
+    }
+  },
+  "b65d7a433ef13ed66faa5ba66bb111edd300abb33bc78accc04af88b77c61ec7": {
+    "query": "SELECT player_character FROM game_players WHERE gameid = ? AND steamid = ?",
+    "describe": {
+      "columns": [
+        {
+          "name": "player_character",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Right": 2
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "c7c9e614ab2be4a31c614f90599e3ad11bb2376ec4b4ff635e505108b463b13f": {
+    "query": "UPDATE game_state SET state = ? WHERE gameid = ?",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Right": 2
+      },
+      "nullable": []
+    }
+  }
+}
