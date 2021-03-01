@@ -93,5 +93,23 @@
       },
       "nullable": []
     }
+  },
+  "fa02a0bea90f94420b41255d3e9bba431ddc9a3ee643fc064cbb4389a9af5876": {
+    "query": "SELECT gameid FROM game_players WHERE steamid = ?",
+    "describe": {
+      "columns": [
+        {
+          "name": "gameid",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Right": 1
+      },
+      "nullable": [
+        false
+      ]
+    }
   }
 }
