@@ -1,5 +1,5 @@
 [package]
-name = "kutschfahrt"
+name = "web_protocol"
 version = "0.1.0"
 authors = ["main() <main@ehvag.de>"]
 edition = "2018"
@@ -8,8 +8,5 @@ edition = "2018"
 
 [dependencies]
 serde = { version = "1.0.123", features = ["derive"] }
-indexmap = { version = "1.6.1", features = ["serde-1"] }
-rand = "0.8.3"
-thiserror = "1.0.24"
-web_protocol = { path = "../web_protocol" }
+enum-utils = "0.1.2"
 

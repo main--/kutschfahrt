@@ -1,9 +1,11 @@
 use rocket_contrib::json::Json;
+use rocket_contrib::serve::StaticFiles;
 use rocket::State;
-use serde_derive::{Serialize, Deserialize};
+
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 
-use kutschfahrt::{Player, Command, State as KutschfahrtState, Perspective};
+use kutschfahrt::State as KutschfahrtState;
+use web_protocol::{Player, GameCommand, MyState, GameInfo};
 
 mod login;
 use login::LoggedIn;
@@ -13,11 +15,14 @@ use error::{Result, Error};
 
 
 
-#[derive(Serialize)]
-enum GameInfo {
-    WaitingForPlayers { players: Vec<Player>, you: Option<Player> },
-    Game(Perspective),
+#[rocket::get("/me", rank = 1)]
+async fn me_loggedin<'a>(db: State<'a, SqlitePool>, l: LoggedIn) -> Result<Json<MyState>> {
+    let my_games = sqlx::query_scalar!("SELECT gameid FROM game_players WHERE steamid = ?", l.steamid).fetch_all(&*db).await?;
+    Ok(Json(MyState::LoggedIn { my_games }))
 }
+#[rocket::get("/me", rank = 2)]
+fn me_loggedout() -> Json<MyState> { Json(MyState::LoggedOut) }
+
 
 #[rocket::get("/game/<id>")]
 async fn game_get<'a>(db: State<'a, SqlitePool>, id: String, l: LoggedIn) -> Result<Json<GameInfo>> {
@@ -36,14 +41,6 @@ async fn game_get<'a>(db: State<'a, SqlitePool>, id: String, l: LoggedIn) -> Res
         }
         (Some(_), None) => unimplemented!("spectator mode"),
     }))
-}
-
-#[derive(Deserialize)]
-enum GameCommand {
-    JoinGame(Player),
-    LeaveGame,
-    StartGame,
-    Command(Command),
 }
 
 #[rocket::post("/game/<id>", data = "<cmd>")]
@@ -96,7 +93,14 @@ async fn create_db_pool() -> Result<SqlitePool> {
 async fn rocket() -> rocket::Rocket {
     rocket::ignite()
         .manage(create_db_pool().await.unwrap())
-        //.mount("/", StaticFiles::from("static/"))
-        .mount("/", rocket::routes![login::login, game_get, game_post])
+        .mount("/", StaticFiles::from("../client/dist"))
+        .mount("/", rocket::routes![
+            login::login,
+            login::logout,
+            game_get,
+            game_post,
+            me_loggedin,
+            me_loggedout,
+        ])
 }
 

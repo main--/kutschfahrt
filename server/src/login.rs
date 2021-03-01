@@ -1,6 +1,6 @@
 use rocket::response::Redirect;
 use rocket::http::uri::Origin;
-use rocket::http::{CookieJar, Cookie, Status, SameSite};
+use rocket::http::{CookieJar, Cookie, SameSite};
 use rocket::request::{Outcome, FromRequest};
 use steam_auth::{Verifier, Redirector};
 
@@ -17,7 +17,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for LoggedIn {
         let jar = <&'a CookieJar>::from_request(req).await.unwrap();
         let steamid = match jar.get_private(USERID).and_then(|x| x.value().parse().ok()) {
             Some(x) => x,
-            None => return Outcome::Failure((Status::Unauthorized, ())),
+            None => return Outcome::Forward(()),
         };
         Outcome::Success(LoggedIn { steamid })
     }
@@ -49,3 +49,10 @@ pub async fn login<'a>(cookies: &'a CookieJar<'a>, qs: &'a Origin<'a>) -> Redire
     }
     Redirect::to(Redirector::new("http://localhost:8000", rocket::uri!(login).to_string()).unwrap().url().to_string())
 }
+
+#[rocket::get("/logout")]
+pub fn logout(cookies: &CookieJar) -> Redirect {
+    cookies.remove_private(Cookie::named(USERID));
+    Redirect::to("/")
+}
+

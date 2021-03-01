@@ -15,4 +15,4 @@ rand = "0.8.3"
 kutschfahrt = { path = "kutschfahrt" }
 
 [workspace]
-members = ["server"]
+members = ["web_protocol", "server", "client"]
