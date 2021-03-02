@@ -29,7 +29,7 @@ pub enum Msg {
 
 async fn update_state(s: String) -> Msg {
     JsFuture::from(sleep(1000)).await.unwrap();
-    let path = format!("/game/{}", s);
+    let path = format!("/api/game/{}", s);
     Msg::Refresh(super::fetch_json(&path).await)
 }
 
@@ -69,7 +69,7 @@ impl Component for Ingame {
                 self.command = s;
             }
             Msg::Submit => {
-                let path = format!("/game/{}", &self.game);
+                let path = format!("/api/game/{}", &self.game);
                 if let Ok(command) = serde_json::from_str::<serde_json::Value>(&self.command) {
                     self.command = String::new();
                     wasm_bindgen_futures::spawn_local(async move {

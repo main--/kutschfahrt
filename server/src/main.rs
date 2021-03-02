@@ -1,5 +1,6 @@
 use rocket_contrib::json::Json;
 use rocket_contrib::serve::StaticFiles;
+use rocket::response::NamedFile;
 use rocket::State;
 
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
@@ -76,6 +77,10 @@ async fn game_post<'a>(cmd: Json<GameCommand>, db: State<'a, SqlitePool>, id: St
     Ok(())
 }
 
+#[rocket::get("/<_path..>", rank = 100)]
+async fn spa_fallback(_path: std::path::PathBuf) -> NamedFile {
+    NamedFile::open("../client/dist/index.html").await.unwrap()
+}
 
 async fn create_db_pool() -> Result<SqlitePool> {
     let pool = SqlitePoolOptions::new()
@@ -90,7 +95,8 @@ async fn rocket() -> rocket::Rocket {
     rocket::ignite()
         .manage(create_db_pool().await.unwrap())
         .mount("/", StaticFiles::from("../client/dist"))
-        .mount("/", rocket::routes![
+        .mount("/", rocket::routes![spa_fallback])
+        .mount("/api/", rocket::routes![
             login::login,
             login::login_cb,
             login::logout,

@@ -26,7 +26,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for LoggedIn {
 
 #[rocket::get("/login?<returnurl>")]
 pub async fn login<'a>(returnurl: String) -> Redirect {
-    Redirect::to(Redirector::new(returnurl, rocket::uri!(login_cb).to_string()).unwrap().url().to_string())
+    Redirect::to(Redirector::new(returnurl, "/api/login_callback").unwrap().url().to_string())
 }
 #[rocket::get("/login_callback")]
 pub async fn login_cb<'a>(cookies: &'a CookieJar<'a>, qs: &'a Origin<'a>) -> Redirect {

@@ -18,9 +18,23 @@ use web_protocol::MyState;
 mod ingame;
 
 
+
+use yew_router::{Switch, router::Router};
+type RouterAnchor = yew_router::prelude::RouterAnchor<AppRoute>;
+
+#[derive(Clone, Debug, Switch)]
+pub enum AppRoute {
+    #[to = "/game/{}"]
+    Game(String),
+    #[to = "/"]
+    Home,
+}
+
+
+
+
 struct App {
     my_state: Option<MyState>,
-    current_game: Option<String>,
     link: ComponentLink<Self>,
 }
 
@@ -29,8 +43,6 @@ enum Msg {
     GotState(MyState),
     Login,
     Logout,
-
-    GoToGame(Option<String>),
 }
 
 async fn fetch_json<T: serde::de::DeserializeOwned>(path: &str) -> T {
@@ -53,11 +65,30 @@ async fn post_json<T: serde::Serialize>(path: &str, body: &T) {
     serde_json::from_str(&text).unwrap()*/
 }
 
-impl App {
-    fn view_game_item(&self, game: String) -> Html {
-        let game2 = game.clone();
-        let link = self.link.callback_once(move |e: yew::events::MouseEvent| { e.prevent_default(); Msg::GoToGame(Some(game2)) });
-        html! { <li><a onclick=link>{game}</a></li> }
+fn view_game_item(game: String) -> Html {
+    html! { <li><RouterAnchor route=AppRoute::Game(game.clone())>{game}</RouterAnchor></li> }
+}
+fn view_content(r: AppRoute, my_games: Vec<String>) -> Html {
+    match r {
+        AppRoute::Home => html! {
+            <ybc::Section>
+                <ybc::Title>{"Your Games"}</ybc::Title>
+                <ybc::Content>
+                    <ul>
+                        {for my_games.into_iter().map(|g| view_game_item(g))}
+                        <li><RouterAnchor route=AppRoute::Game(uuid::Uuid::new_v4().to_string())>{"+ New Game"}</RouterAnchor></li>
+                    </ul>
+                </ybc::Content>
+            </ybc::Section>
+        },
+        AppRoute::Game(g) => html! {
+            <ybc::Section>
+                <ybc::Title>{format!("Game '{}'", g)}</ybc::Title>
+                <ybc::Content>
+                    <ingame::Ingame game=g />
+                </ybc::Content>
+            </ybc::Section>
+        },
     }
 }
 impl Component for App {
@@ -65,10 +96,9 @@ impl Component for App {
     type Properties = ();
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        link.send_future(async { Msg::GotState(fetch_json("/me").await) });
+        link.send_future(async { Msg::GotState(fetch_json("/api/me").await) });
         App {
             my_state: None,
-            current_game: None,
             link,
         }
     }
@@ -80,14 +110,11 @@ impl Component for App {
             }
             Msg::Login => {
                 let loc = window().location();
-                let url = format!("/login?returnurl={}", loc.href().unwrap());
+                let url = format!("/api/login?returnurl={}", loc.origin().unwrap());
                 loc.set_href(&url).unwrap();
             }
             Msg::Logout => {
-                window().location().set_pathname("/logout").unwrap();
-            }
-            Msg::GoToGame(g) => {
-                self.current_game = g;
+                window().location().set_pathname("/api/logout").unwrap();
             }
         }
         true
@@ -106,31 +133,6 @@ impl Component for App {
         let (my_games, logged_in) = match &self.my_state {
             Some(MyState::LoggedIn { my_games }) => (my_games.clone(), true),
             _ => (vec![], false),
-        };
-        let new_game = self.link.callback(move |e: yew::events::MouseEvent| {
-            e.prevent_default();
-            Msg::GoToGame(Some(uuid::Uuid::new_v4().to_string()))
-        });
-        let content = match &self.current_game {
-            None => html! {
-                <ybc::Section>
-                    <ybc::Title>{"Your Games"}</ybc::Title>
-                    <ybc::Content>
-                        <ul>
-                            {for my_games.into_iter().map(|g| self.view_game_item(g))}
-                            {if logged_in { html! { <li><a onclick=new_game>{"+ New Game"}</a></li> } } else { html! { {"Please log in."} } }}
-                        </ul>
-                    </ybc::Content>
-                </ybc::Section>
-            },
-            Some(s) => html! {
-                <ybc::Section>
-                    <ybc::Title>{format!("Game '{}'", s)}</ybc::Title>
-                    <ybc::Content>
-                        <ingame::Ingame game=s />
-                    </ybc::Content>
-                </ybc::Section>
-            },
         };
         html! {
             <>
@@ -153,7 +155,13 @@ impl Component for App {
                 />
 
                 <ybc::Container classes="is-centered">
-                    {content}
+                    {if logged_in { html! {
+                        <Router<AppRoute>
+                            render=Router::render(move |r| view_content(r, my_games.clone()))
+                        />
+                    } } else { html! {
+                        {"Please log in."}
+                    } }}
                 </ybc::Container>
             </>
         }
