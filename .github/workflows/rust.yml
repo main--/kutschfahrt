@@ -16,9 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Syntax check
-      run: cargo check --verbose --all
     - name: Build
-      run: cargo build --verbose --all
+      run: cargo build --all
     - name: Run tests
-      run: cargo test --verbose --all
+      run: cargo test --all
