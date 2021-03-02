@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use std::collections::{HashSet, HashMap};
-use std::mem;
 use std::iter;
 
 use indexmap::IndexMap;

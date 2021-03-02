@@ -13,6 +13,7 @@ serde_json = "1.0.62"
 indexmap = { version = "1.6.1", features = ["serde-1"] }
 rand = "0.8.3"
 kutschfahrt = { path = "kutschfahrt" }
+web_protocol = { path = "web_protocol" }
 
 [workspace]
 members = ["web_protocol", "server", "client"]

@@ -1,15 +1,9 @@
 #![allow(dead_code)]
 
-use std::collections::{HashSet, HashMap};
-use std::mem;
-use std::iter;
-
-use indexmap::IndexMap;
-use serde_json;
-use serde_derive::Serialize;
 use rand::prelude::*;
 
 use kutschfahrt::*;
+use web_protocol::*;
 
 fn main() {
     /*

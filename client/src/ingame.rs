@@ -1,9 +1,6 @@
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use ybc::TileCtx::{Ancestor, Child, Parent};
 use yew::prelude::*;
-use yew::utils::window;
 use yew::events::{InputData, KeyboardEvent};
 use yewtil::future::LinkFuture;
 use js_sys::Promise;

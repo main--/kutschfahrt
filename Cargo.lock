@@ -1097,6 +1097,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "web_protocol",
 ]
 
 [[package]]
