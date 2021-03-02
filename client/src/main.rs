@@ -79,7 +79,9 @@ impl Component for App {
                 self.my_state = Some(s);
             }
             Msg::Login => {
-                window().location().set_pathname("/login").unwrap();
+                let loc = window().location();
+                let url = format!("/login?returnurl={}", loc.href().unwrap());
+                loc.set_href(&url).unwrap();
             }
             Msg::Logout => {
                 window().location().set_pathname("/logout").unwrap();

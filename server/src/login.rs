@@ -24,8 +24,12 @@ impl<'a, 'r> FromRequest<'a, 'r> for LoggedIn {
 }
 
 
-#[rocket::get("/login")]
-pub async fn login<'a>(cookies: &'a CookieJar<'a>, qs: &'a Origin<'a>) -> Redirect {
+#[rocket::get("/login?<returnurl>")]
+pub async fn login<'a>(returnurl: String) -> Redirect {
+    Redirect::to(Redirector::new(returnurl, rocket::uri!(login_cb).to_string()).unwrap().url().to_string())
+}
+#[rocket::get("/login_callback")]
+pub async fn login_cb<'a>(cookies: &'a CookieJar<'a>, qs: &'a Origin<'a>) -> Redirect {
     if let Some(q) = qs.query() {
         // TODO: rework the error handling here
         let (req, verifier) = Verifier::from_querystring(q).unwrap();
@@ -42,12 +46,11 @@ pub async fn login<'a>(cookies: &'a CookieJar<'a>, qs: &'a Origin<'a>) -> Redire
                 let mut c = Cookie::new(USERID, steam_id.to_string());
                 c.set_same_site(SameSite::Lax);
                 cookies.add_private(c);
-                return Redirect::to("/");
             }
             Err(e) => eprintln!("There was an error authenticating: {}", e),
         }
     }
-    Redirect::to(Redirector::new("http://localhost:8000", rocket::uri!(login).to_string()).unwrap().url().to_string())
+    Redirect::to("/")
 }
 
 #[rocket::get("/logout")]

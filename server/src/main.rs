@@ -92,6 +92,7 @@ async fn rocket() -> rocket::Rocket {
         .mount("/", StaticFiles::from("../client/dist"))
         .mount("/", rocket::routes![
             login::login,
+            login::login_cb,
             login::logout,
             game_get,
             game_post,
