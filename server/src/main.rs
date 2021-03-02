@@ -85,7 +85,7 @@ async fn spa_fallback(_path: std::path::PathBuf) -> NamedFile {
 async fn create_db_pool() -> Result<SqlitePool> {
     let pool = SqlitePoolOptions::new()
         //.max_connections(8)
-        .connect("sqlite::memory:").await?;
+        .connect("sqlite:kutschfahrt.sqlite").await?;
     sqlx::migrate!().run(&pool).await?;
     Ok(pool)
 }
