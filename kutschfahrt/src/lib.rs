@@ -165,9 +165,9 @@ impl State {
                             }
                             buffs.push(Buff{
                                 user: actor,
-                                source: buff,
                                 value: buff.score()*role.sign(),
-                                breaks_tie: (buff.breaks_tie() as i8)*role.sign()
+                                breaks_tie: (buff.breaks_tie() as i8)*role.sign(),
+                                source: buff,
                             });
                             passed.clear();
                         }

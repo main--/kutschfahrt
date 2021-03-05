@@ -217,6 +217,8 @@ pub enum Command {
     DoneLookingAtThings,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub enum AttackRole {
     Attacker,
     Defender,
