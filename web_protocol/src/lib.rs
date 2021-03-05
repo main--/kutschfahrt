@@ -63,7 +63,7 @@ pub struct Perspective {
 pub struct PerspectivePlayer {
     pub player: Player,
     pub job: Option<Job>,
-    pub items: usize,
+    pub item_count: usize,
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PerspectiveTurnState {
@@ -93,7 +93,7 @@ pub enum Item {
     Gloves,
     PoisonRing,
     CastingKnives,
-    Whip,
+    Whip, // Insert Zasa whip noises
     Priviledge, // trigger: view items
     Monocle, // trigger: view association
     BrokenMirror,
@@ -167,8 +167,10 @@ pub enum AttackWinner {
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Buff {
-    user: Player,
-    source: BuffSource,
+    pub user: Player,
+    pub source: BuffSource,
+    pub value: i8, //Let's see if future Kutschfahrt Expansions make scores over 127 possible (currently capped at ~25)
+    pub breaks_tie: i8 //This should have a sign too, so we can't use bool
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -213,4 +215,66 @@ pub enum Command {
     StealItem { item: Item, give_back: Option<Item> },
 
     DoneLookingAtThings,
+}
+
+pub enum AttackRole {
+    Attacker,
+    Defender,
+    AttackSupport(AttackSupport)
+}
+
+impl BuffSource {
+    pub fn legal(&self, user_type: AttackRole) -> bool {
+        match user_type {
+            AttackRole::Attacker => {
+                match self {
+                    BuffSource::Item(Item::Dagger) | BuffSource::Item(Item::PoisonRing) | BuffSource::Job(Job::Thug) => true,
+                    _ => false
+                }
+            }
+            AttackRole::Defender => {
+                match self {
+                    BuffSource::Item(Item::Gloves) | BuffSource::Item(Item::PoisonRing) | BuffSource::Job(Job::GrandMaster) => true,
+                    _ => false
+                }
+            }
+            AttackRole::AttackSupport(AttackSupport::Attack) => {
+                match self {
+                    BuffSource::Item(Item::CastingKnives) | BuffSource::Job(Job::Bodyguard) => true,
+                    _ => false
+                }
+            }
+            AttackRole::AttackSupport(AttackSupport::Defend) => {
+                match self {
+                    BuffSource::Item(Item::Whip) | BuffSource::Job(Job::Bodyguard) => true,
+                    _ => false
+                }
+            }
+            AttackRole::AttackSupport(AttackSupport::Abstain) => false
+        }
+    }
+
+    pub fn score(&self) -> i8 {
+        match self {
+            BuffSource::Item(Item::PoisonRing) => 0,
+            _ => 1, // yeah sorry that's not exciting. We have no fancy expansion stuff yet
+        }
+    }
+
+    pub fn breaks_tie(&self) -> bool {
+        match self {
+            BuffSource::Item(Item::PoisonRing) => true,
+            _ => false,
+        }
+    }
+}
+
+impl AttackRole {
+    pub fn sign(&self) -> i8 {
+        match self {
+            AttackRole::Attacker | AttackRole::AttackSupport(AttackSupport::Attack) => 1,
+            AttackRole::Defender | AttackRole::AttackSupport(AttackSupport::Defend) => -1,
+            _ => 0
+        }
+    }
 }

@@ -86,9 +86,6 @@ impl State {
             }
             TurnState::Attacking { attacker, defender, state } => match state {
                 AttackState::WaitingForPriest => {
-                    if actor != defender {
-                        return Err(CommandError::NotYourTurn);
-                    }
                     match c {
                         Command::UsePriest { priest: true } => {
                             let defp = s.players.get(&defender).unwrap();
@@ -101,7 +98,11 @@ impl State {
                             unimplemented!();
                         },
                         Command::UsePriest { priest: false } => {
-                            TurnState::Attacking { attacker, defender, state: AttackState::DeclaringSupport(HashMap::new()) }
+                            TurnState::Attacking {
+                                attacker,
+                                defender,
+                                state: AttackState::DeclaringSupport(HashMap::new())
+                            }
                         },
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
@@ -145,15 +146,30 @@ impl State {
                         Command::ItemOrJob { buff: None } => {
                             passed.insert(actor);
                             if passed.len() == s.players.len() {
+                                let score = (votes.values().filter(|&n| *n == AttackSupport::Attack).count() as i8)- // number of attack supporting players
+                                            (votes.values().filter(|&n| *n == AttackSupport::Defend).count() as i8)+ // number of defense supporting players
+                                            (buffs.iter().map(|buff| buff.value).sum::<i8>());
                                 // TODO: actually resolve the fight here
                                 unimplemented!();
                                 //return Ok(TurnState::Attacking { attacker, defender, state: AttackState::Resolving })
                             }
                         }
                         Command::ItemOrJob { buff: Some(buff) } => {
-                            // TODO: validate and apply buff
+                            let role = match actor {
+                                _ if actor == attacker => AttackRole::Attacker, // this is porbably dreadful but I couldn't find a way to do this better :(
+                                _ if actor == defender => AttackRole::Defender, // Yet, generally, I'd suggest replacing the votes hashmap by a roles hashmap
+                                _  => AttackRole::AttackSupport(votes[&actor])
+                            };
+                            if !buff.legal(role) {
+                                return Err(CommandError::InvalidCommandInThisContext)
+                            }
+                            buffs.push(Buff{
+                                user: actor,
+                                source: buff,
+                                value: buff.score()*role.sign(),
+                                breaks_tie: (buff.breaks_tie() as i8)*role.sign()
+                            });
                             passed.clear();
-                            unimplemented!();
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
@@ -229,7 +245,7 @@ impl State {
 
     pub fn new(mut players: Vec<Player>, rng: &mut impl Rng) -> State {
         assert!(players.len() >= 3); // TODO: dreier spiel in sinnvoll
-        // TODO: das vmtl falsch
+        // Das ist jetzt nicht mehr falsch
         let mut start_items = [
             Item::Key,
             Item::Key,
@@ -243,10 +259,10 @@ impl State {
             Item::PoisonRing,
             Item::CastingKnives,
             Item::Whip,
+            Item::Priviledge,
+            Item::Monocle
         ];
         let mut other_items = vec![
-            Item::Priviledge,
-            Item::Monocle,
             Item::BrokenMirror,
             Item::Sextant,
             Item::Coat,
@@ -308,6 +324,7 @@ impl State {
                 ResolvingTradeTrigger { offerer, target, trigger }
             }
             &TurnState::Attacking { attacker, defender, ref state } => Attacking { attacker, defender, state: state.clone() },
+            // Items resp. credentials of defeated player visible
         };
         Perspective {
             you: self.game.players[&p].clone(),
@@ -315,7 +332,7 @@ impl State {
             players: self.game.players.iter().map(|(&k, v)| PerspectivePlayer {
                 player: k,
                 job: if v.job_is_visible { Some(v.job) } else { None },
-                items: v.items.len(),
+                item_count: v.items.len(),
             }).collect(),
             item_stack: self.game.item_stack.len(),
             turn,
