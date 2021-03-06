@@ -389,8 +389,34 @@ impl State {
                 };
                 ResolvingTradeTrigger { offerer, target, trigger }
             }
-            &TurnState::Attacking { attacker, defender, ref state } => Attacking { attacker, defender, state: state.clone() },
-            // Items resp. credentials of defeated player visible
+            &TurnState::Attacking { attacker, defender, ref state } => {
+                let myself = if p == attacker {
+                    Some(AttackWinner::Attacker)
+                } else if p == defender {
+                    Some(AttackWinner::Defender)
+                } else {
+                    None
+                };
+
+                let state = match (state, myself) {
+                    // if we're in FinishResolving AND I am the winner, then I get to see extra info
+                    (&AttackState::FinishResolving { winner, steal_items }, Some(me)) if me == winner => {
+                        let victim = match winner {
+                            AttackWinner::Attacker => defender,
+                            AttackWinner::Defender => attacker,
+                        };
+                        let victim = self.game.players.get(&victim).unwrap();
+                        if steal_items {
+                            PerspectiveAttackState::FinishResolvingItems { target_items: victim.items.clone() }
+                        } else {
+                            PerspectiveAttackState::FinishResolvingCredentials { target_faction: victim.faction, target_job: victim.job }
+                        }
+                    }
+                    _ => PerspectiveAttackState::Normal(state.clone()),
+                };
+
+                Attacking { attacker, defender, state }
+            }
         };
         Perspective {
             you: self.game.players[&p].clone(),

@@ -71,7 +71,13 @@ pub enum PerspectiveTurnState {
     GameOver { winner: Faction },
     TradePending { offerer: Player, target: Player, item: Option<Item> },
     ResolvingTradeTrigger { offerer: Player, target: Player, trigger: TradeTriggerState }, // for sextant, item selections are cleared
-    Attacking { attacker: Player, defender: Player, state: AttackState }, // AttackState info ís always public
+    Attacking { attacker: Player, defender: Player, state: PerspectiveAttackState }, // AttackState info ís always public
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum PerspectiveAttackState {
+    Normal(AttackState),
+    FinishResolvingCredentials { target_faction: Faction, target_job: Job },
+    FinishResolvingItems { target_items: Vec<Item> },
 }
 
 
