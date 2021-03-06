@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{cmp::max, collections::{HashSet, HashMap}, usize};
+use std::{alloc::take_alloc_error_hook, cmp::max, collections::{HashSet, HashMap}, usize};
 use std::iter;
 
 use indexmap::IndexMap;
@@ -73,11 +73,11 @@ impl GameState {
             .filter(move |&x| x != attacker && x != defender)
     }
 
-    pub fn gain(&mut self, gainer: Player, source: Option<(Player, Item)>, next: TurnState) -> Result<Option<TurnState>, CommandError> {
+    pub fn gain(&mut self, gainer: Player, source: Option<(Player, Item)>, next: Box<TurnState>) -> Result<TurnState, CommandError> {
         let (gained, give_back) = match source {
             None => match self.item_stack.pop() {
                 Some(item) => (item, None),
-                None => return Ok(None),
+                None => return Ok(*next),
             },
             Some((one, thing)) => {
                 let from = self.players.get_mut(&one).unwrap();
@@ -93,9 +93,9 @@ impl GameState {
         let gainer_state = self.players.get_mut(&gainer).unwrap();
         gainer_state.items.push(gained);
         let cool = if give_back.is_some() || gainer_state.items.len() > self.items_limit() {
-            Some(TurnState::Give { giver: gainer, recipient: give_back, next: Box::new(next) })
+            TurnState::Give { giver: gainer, recipient: give_back, next: next }
         } else {
-            None
+            *next
         };
         Ok(cool)
     }
@@ -117,7 +117,10 @@ impl State {
                         unimplemented!();
                     }
                     Command::OfferTrade { target, item } => {
-                        unimplemented!();
+                        if !s.players.contains_key(&target) || actor == target || !s.players.get(&actor).unwrap().items.contains(&item) {
+                            return Err(CommandError::InvalidTargetPlayer);
+                        }
+                        TurnState::TradePending { offerer: actor, target, item }
                     }
                     Command::InitiateAttack { player } => {
                         if !s.players.contains_key(&player) || actor == player {
@@ -290,51 +293,40 @@ impl State {
                     }
                 }
                 AttackState::FinishResolving { winner, steal_items } => {
-                    let winner_player = match winner {
-                        AttackWinner::Attacker => attacker,
-                        AttackWinner::Defender => defender,
+                    let (winner_player, loser_player) = match winner {
+                        AttackWinner::Attacker => (attacker, defender),
+                        AttackWinner::Defender => (defender, attacker),
                     };
                     if actor != winner_player {
                         return Err(CommandError::NotYourTurn);
                     }
+                    let waiting = TurnState::WaitingForQuickblink(s.next_player(attacker));
                     match c {
-                        Command::DoneLookingAtThings if !steal_items => (),
-                        Command::StealItem { item, give_back } if steal_items => {
-                            // borrowing is complicated sometimes :(
-                            let attacker_del_idx;
-                            let defender_del_idx;
-                            {
-                                let attacker_items = &s.players.get(&attacker).unwrap().items;
-                                let defender_items = &s.players.get(&defender).unwrap().items;
-                                if give_back.is_some() != (defender_items.len() == 1) {
-                                    // give back an item exactly when defender has exactly 1 item
-                                    return Err(CommandError::InvalidStealCommand)
-                                }
-                                // TODO: implement inventory limit and item donation
-                                defender_del_idx = defender_items.iter().position(|x| *x == item).ok_or(CommandError::InvalidStealCommand)?;
-                                attacker_del_idx = match give_back {
-                                    None => None,
-                                    Some(i) => Some(attacker_items.iter().position(|x| *x == i).ok_or(CommandError::InvalidStealCommand)?),
-                                };
-                            }
-                            {
-                                let a = &mut s.players.get_mut(&attacker).unwrap().items;
-                                a.push(item);
-                                if let Some(i) = attacker_del_idx {
-                                    a.remove(i);
-                                }
-                            }
-                            {
-                                let d = &mut s.players.get_mut(&defender).unwrap().items;
-                                d.remove(defender_del_idx);
-                                if let Some(i) = give_back {
-                                    d.push(i);
-                                }
-                            }
+                        Command::DoneLookingAtThings if !steal_items => waiting,
+                        Command::StealItem { item } if steal_items => {
+                            // borrowing is easy now :) Or I messed something up terribly :(
+                            s.gain(winner_player, Some((loser_player, item)), Box::new(waiting))?
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
-                    TurnState::WaitingForQuickblink(s.next_player(attacker))
+                }
+            }
+            TurnState::Give { giver, next, recipient } => {
+                if actor != giver {
+                    return Err(CommandError::NotYourTurn);
+                }
+
+                match c {
+                    Command::Give { item, target } => {
+                        match recipient {
+                            Some(x) if x == target => (),
+                            Some(x) if x != target => return Err(CommandError::InvalidTargetPlayer), // specific recipient: target must be recipient
+                            None if s.players.get(&target).unwrap().items.len() < s.items_limit() => (),
+                            _ => return Err(CommandError::InvalidTargetPlayer), // free recipient: recipient must be below item cap
+                        }
+                        s.gain(target, Some((giver, item)), next)?
+                    }
+                    _ => return Err(CommandError::InvalidCommandInThisContext),
                 }
             }
             _ => unimplemented!(),

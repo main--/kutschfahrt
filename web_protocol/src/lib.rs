@@ -238,8 +238,9 @@ pub enum Command {
         target: Option<Player> // Only for poison mixer atm, will have additional uses in expansion
     },
     ClaimReward { steal_items: bool },
-    StealItem { item: Item, give_back: Option<Item> },
+    StealItem { item: Item },
 
+    Give { item: Item, target: Player },
     DoneLookingAtThings,
 }
 
