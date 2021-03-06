@@ -199,26 +199,15 @@ impl State {
                                 BuffSource::Item(x) => return Err(CommandError::InvalidItemError(x))
                             }
 
-                            buffs.push(Buff {
-                                user: actor,
-                                // Check if using this buff is vaild for the player's role
-                                raw_score: buff.raw_score(role).ok_or(CommandError::InvalidCommandInThisContext)?,
-                                source: buff.clone(),
-                            });
-                            passed.clear();
                             // resolve triggers
                             match buff {
-                                BuffSource::Job(Job::Duelist) => {
-                                    for vote in votes.values_mut() {
-                                        *vote = AttackSupport::Abstain;
-                                    }
-                                    buffs.retain(|x| x.user == attacker || x.user == defender);
-                                    TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed, buffs } }
-                                }
+                                // triggers that end the fight:
                                 BuffSource::Job(Job::Doctor) => {
+                                    // TODO: is doctor allowed when you abstained?
                                     TurnState::WaitingForQuickblink(s.next_player(attacker))
                                 }
                                 BuffSource::Job(Job::PoisonMixer) => {
+                                    // TODO: is poison mixer allowed when you abstained?
                                     let winner = match target {
                                         Some(x) if x == attacker => AttackWinner::Attacker,
                                         Some(x) if x == defender => AttackWinner::Defender,
@@ -226,11 +215,24 @@ impl State {
                                     };
                                     TurnState::Attacking { attacker, defender, state: AttackState::Resolving { winner } }
                                 }
-                                _ => {
+                                buff => {
+                                    // Check if using this buff is vaild for the player's role
+                                    let raw_score = buff.raw_score(role).ok_or(CommandError::InvalidCommandInThisContext)?;
+
+                                    // triggers that don't end the fight:
+                                    if let BuffSource::Job(Job::Duelist) = &buff {
+                                        for vote in votes.values_mut() {
+                                            *vote = AttackSupport::Abstain;
+                                        }
+                                        buffs.retain(|x| x.user == attacker || x.user == defender);
+                                    }
+
+                                    buffs.push(Buff { user: actor, raw_score, source: buff });
+                                    passed.clear();
+
                                     TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed, buffs } }
                                 }
                             }
-                            
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
