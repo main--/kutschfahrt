@@ -71,7 +71,8 @@ pub enum PerspectiveTurnState {
     GameOver { winner: Faction },
     TradePending { offerer: Player, target: Player, item: Option<Item> },
     ResolvingTradeTrigger { offerer: Player, target: Player, trigger: TradeTriggerState }, // for sextant, item selections are cleared
-    Attacking { attacker: Player, defender: Player, state: PerspectiveAttackState }, // AttackState info ís always public
+    Attacking { attacker: Player, defender: Player, state: PerspectiveAttackState }, // AttackState info is always public
+    Give { giver: Player, recipient: Option<Player>, }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PerspectiveAttackState {
@@ -147,6 +148,11 @@ pub enum TurnState {
         defender: Player,
         state: AttackState,
     },
+    Give {
+        giver: Player,
+        recipient: Option<Player>,
+        next: Box<TurnState>
+    }
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum AttackState {

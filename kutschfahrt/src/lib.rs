@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::{HashSet, HashMap};
+use std::{cmp::max, collections::{HashSet, HashMap}, usize};
 use std::iter;
 
 use indexmap::IndexMap;
@@ -49,6 +49,16 @@ impl From<JobUseError> for CommandError {
 }
 
 impl GameState {
+    fn items_limit(&self) -> usize {
+        let expansion = false; // For future implementation
+        let total_item_limit = if expansion {
+            31
+        } else {
+            21
+        }; // Alternative: Use actual total items in game
+        max(total_item_limit / self.players.len(), 4) + 1
+    }
+
     fn next_player(&self, p: Player) -> Player {
         let index = self.players.get_index_of(&p).expect("Invalid player");
         let next_index = (index + 1) % self.players.len();
@@ -61,6 +71,33 @@ impl GameState {
             .skip_while(move |&x| x != attacker)
             .take(self.players.len())
             .filter(move |&x| x != attacker && x != defender)
+    }
+
+    pub fn gain(&mut self, gainer: Player, source: Option<(Player, Item)>, next: TurnState) -> Result<Option<TurnState>, CommandError> {
+        let (gained, give_back) = match source {
+            None => match self.item_stack.pop() {
+                Some(item) => (item, None),
+                None => return Ok(None),
+            },
+            Some((one, thing)) => {
+                let from = self.players.get_mut(&one).unwrap();
+                let pos = from.items.iter().position(|x| *x==thing).ok_or(CommandError::InvalidItemError(thing))?;
+                let last_item = if from.items.len() == 1 {
+                    Some(one)
+                } else {
+                    None
+                };
+                (from.items.remove(pos), last_item)
+            },
+        };
+        let gainer_state = self.players.get_mut(&gainer).unwrap();
+        gainer_state.items.push(gained);
+        let cool = if give_back.is_some() || gainer_state.items.len() > self.items_limit() {
+            Some(TurnState::Give { giver: gainer, recipient: give_back, next: Box::new(next) })
+        } else {
+            None
+        };
+        Ok(cool)
     }
 }
 impl State {
@@ -413,6 +450,7 @@ impl State {
 
                 Attacking { attacker, defender, state }
             }
+            &TurnState::Give { giver, recipient, .. } => Give { giver, recipient },
         };
         Perspective {
             you: self.game.players[&p].clone(),
