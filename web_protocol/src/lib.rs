@@ -232,30 +232,21 @@ impl BuffSource {
         match (self, user_type) {
             (BuffSource::Item(Item::Dagger), AttackRole::Attacker) => Some(2),
             (BuffSource::Job(Job::Thug), AttackRole::Attacker) => Some(2),
-            (BuffSource::Item(Item::Gloves), AttackRole::Defender) => Some(2),
-            (BuffSource::Job(Job::GrandMaster), AttackRole::Defender) => Some(2),
-            (BuffSource::Item(Item::PoisonRing), AttackRole::Defender) => Some(1),
+            (BuffSource::Item(Item::Gloves), AttackRole::Defender) => Some(-2),
+            (BuffSource::Job(Job::GrandMaster), AttackRole::Defender) => Some(-2),
+            (BuffSource::Item(Item::PoisonRing), AttackRole::Defender) => Some(-1),
             (BuffSource::Item(Item::PoisonRing), AttackRole::Attacker) => Some(1),
             (BuffSource::Job(Job::Duelist), AttackRole::Attacker) => Some(2),
-            (BuffSource::Job(Job::Duelist), AttackRole::Defender) => Some(2),
+            (BuffSource::Job(Job::Duelist), AttackRole::Defender) => Some(-2),
             (BuffSource::Item(Item::CastingKnives), AttackRole::AttackSupport(AttackSupport::Attack)) => Some(2),
-            (BuffSource::Item(Item::Whip), AttackRole::AttackSupport(AttackSupport::Defend)) => Some(2),
+            (BuffSource::Item(Item::Whip), AttackRole::AttackSupport(AttackSupport::Defend)) => Some(-2),
             (BuffSource::Job(Job::Bodyguard), AttackRole::AttackSupport(AttackSupport::Attack)) => Some(2),
-            (BuffSource::Job(Job::Bodyguard), AttackRole::AttackSupport(AttackSupport::Defend)) => Some(2),
+            (BuffSource::Job(Job::Bodyguard), AttackRole::AttackSupport(AttackSupport::Defend)) => Some(-2),
             _ => None
         }
     }
 }
 
-impl AttackRole {
-    pub fn sign(&self) -> i8 {
-        match self {
-            AttackRole::Attacker | AttackRole::AttackSupport(AttackSupport::Attack) => 1,
-            AttackRole::Defender | AttackRole::AttackSupport(AttackSupport::Defend) => -1,
-            AttackRole::AttackSupport(AttackSupport::Abstain) => 0
-        }
-    }
-}
 
 impl PlayerState {
     pub fn use_job(&mut self, job: Job) -> Result<(), JobUseError> {
@@ -276,5 +267,7 @@ impl Job {
         }
     }
 }
+
 #[derive(Debug)]
 pub struct JobUseError;
+

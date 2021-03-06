@@ -185,20 +185,18 @@ impl State {
                             } else {
                                 AttackRole::AttackSupport(votes[&actor])
                             };
+
                             // Check if using this buff is vaild for the player
                             match buff {
                                 BuffSource::Item(x) if s.players.get(&actor).unwrap().items.contains(&x) => (),
                                 BuffSource::Job(x) => s.players.get_mut(&actor).unwrap().use_job(x)?,
                                 BuffSource::Item(x) => return Err(CommandError::InvalidItemError(x))
                             }
-                            // Check if using this buff is vaild for the player's role
-                            let raw_score = match buff.raw_score(role) {
-                                None => return Err(CommandError::InvalidCommandInThisContext),
-                                Some(x) => x
-                            };
-                            buffs.push(Buff{
+
+                            buffs.push(Buff {
                                 user: actor,
-                                raw_score: raw_score*role.sign(),
+                                // Check if using this buff is vaild for the player's role
+                                raw_score: buff.raw_score(role).ok_or(CommandError::InvalidCommandInThisContext)?,
                                 source: buff.clone(),
                             });
                             passed.clear();
