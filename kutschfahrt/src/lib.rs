@@ -164,10 +164,11 @@ impl State {
                         // TODO: We might wanna warn the player if he specifies a target for a buff that doesn't need a target
                         Command::ItemOrJob { buff: None, target: _ } => {
                             passed.insert(actor);
-                            if passed.len() == votes.values().filter(|&n| *n != AttackSupport::Abstain).count() + 2 {
-                                let score = (votes.values().filter(|&n| *n == AttackSupport::Attack).count() as i8)- // number of attack supporting players
-                                            (votes.values().filter(|&n| *n == AttackSupport::Defend).count() as i8)+ // number of defense supporting players
-                                            (buffs.iter().map(|buff| buff.raw_score).sum::<i8>());
+                            let required_passes = votes.values().filter(|&n| *n != AttackSupport::Abstain).count() + 2;
+                            if passed.len() == required_passes {
+                                let score: BuffScore = buffs.iter().map(|b| b.raw_score)
+                                    .chain(votes.values().map(|v| v.vote_value())).sum();
+
                                 if score == 0 {
                                     if let Some(drawn_item) = s.item_stack.pop() {
                                         // TODO: handle item limit

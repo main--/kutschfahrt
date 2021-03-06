@@ -165,11 +165,14 @@ pub enum AttackWinner {
     Attacker,
     Defender,
 }
+
+pub type BuffScore = i8;
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Buff {
     pub user: Player,
     pub source: BuffSource,
-    pub raw_score: i8, // Raw score is twice actual strength and 1 if it breaks ties
+    pub raw_score: BuffScore, // Raw score is twice actual strength and 1 if it breaks ties
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -183,6 +186,15 @@ pub enum AttackSupport {
     Attack,
     Defend,
     Abstain,
+}
+impl AttackSupport {
+    pub fn vote_value(&self) -> BuffScore {
+        match self {
+            AttackSupport::Attack => 1,
+            AttackSupport::Defend => -1,
+            AttackSupport::Abstain => 0,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -228,7 +240,7 @@ pub enum AttackRole {
 }
 
 impl BuffSource {
-    pub fn raw_score(&self, user_type: AttackRole) -> Option<i8> {
+    pub fn raw_score(&self, user_type: AttackRole) -> Option<BuffScore> {
         match (self, user_type) {
             (BuffSource::Item(Item::Dagger), AttackRole::Attacker) => Some(2),
             (BuffSource::Job(Job::Thug), AttackRole::Attacker) => Some(2),
