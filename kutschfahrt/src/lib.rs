@@ -156,16 +156,12 @@ impl State {
                     if passed.contains(&actor) {
                         return Err(CommandError::YouHaveAlreadyPassed);
                     }
-                    if votes.get(&actor) == Some(&AttackSupport::Abstain) {
-                        return Err(CommandError::YouAbstained);
-                    }
 
                     match c {
                         // TODO: We might wanna warn the player if he specifies a target for a buff that doesn't need a target
                         Command::ItemOrJob { buff: None, target: _ } => {
                             passed.insert(actor);
-                            let required_passes = votes.values().filter(|&n| *n != AttackSupport::Abstain).count() + 2;
-                            if passed.len() == required_passes {
+                            if passed.len() == s.players.len() {
                                 let score: BuffScore = buffs.iter().map(|b| b.raw_score)
                                     .chain(votes.values().map(|v| v.vote_value())).sum();
 
