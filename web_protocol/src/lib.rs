@@ -144,7 +144,7 @@ pub enum TurnState {
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum AttackState {
-    WaitingForPriest,
+    WaitingForPriest { passed: HashSet<Player> },
     DeclaringSupport(HashMap<Player, AttackSupport>),
     WaitingForHypnotizer(HashMap<Player, AttackSupport>),
     ItemsOrJobs {

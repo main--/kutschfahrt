@@ -87,31 +87,34 @@ impl State {
                         TurnState::Attacking {
                             attacker: actor,
                             defender: player,
-                            state: AttackState::WaitingForPriest,
+                            state: AttackState::WaitingForPriest { passed: HashSet::new() },
                         }
                     }
                     _ => return Err(CommandError::InvalidCommandInThisContext),
                 }
             }
             TurnState::Attacking { attacker, defender, state } => match state {
-                AttackState::WaitingForPriest => {
+                AttackState::WaitingForPriest { mut passed } => {
                     match c {
                         Command::UsePriest { priest: true } => {
-                            let defp = s.players.get(&defender).unwrap();
-                            if (defp.job != Job::Priest) || defp.job_is_visible {
-                                // TODO: better error maybe
-                                return Err(CommandError::InvalidCommandInThisContext);
+                            if passed.contains(&actor) {
+                                return Err(CommandError::YouHaveAlreadyPassed);
                             }
+
+                            let defp = s.players.get_mut(&actor).unwrap();
+                            defp.use_job(Job::Priest)?;
 
                             // TODO: resolve priest usage (needs new state I think)
                             unimplemented!();
                         },
                         Command::UsePriest { priest: false } => {
-                            TurnState::Attacking {
-                                attacker,
-                                defender,
-                                state: AttackState::DeclaringSupport(HashMap::new())
-                            }
+                            passed.insert(actor);
+                            let state = if passed.len() == s.players.len() {
+                                AttackState::DeclaringSupport(HashMap::new())
+                            } else {
+                                AttackState::WaitingForPriest { passed }
+                            };
+                            TurnState::Attacking { attacker, defender, state }
                         },
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
