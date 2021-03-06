@@ -170,10 +170,13 @@ impl State {
                                         s.players.get_mut(&attacker).unwrap().items.push(drawn_item)
                                     }
                                     TurnState::WaitingForQuickblink(s.next_player(attacker))
-                                } else if score > 0 {
-                                    TurnState::Attacking { attacker, defender, state: AttackState::Resolving {winner: AttackWinner::Attacker} }
                                 } else {
-                                    TurnState::Attacking { attacker, defender, state: AttackState::Resolving {winner: AttackWinner::Defender} }
+                                    let winner = if score > 0 {
+                                        AttackWinner::Attacker
+                                    } else {
+                                        AttackWinner::Defender
+                                    };
+                                    TurnState::Attacking { attacker, defender, state: AttackState::Resolving { winner } }
                                 }
                             } else {
                                 TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed, buffs } }
