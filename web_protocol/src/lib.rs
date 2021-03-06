@@ -169,8 +169,7 @@ pub enum AttackWinner {
 pub struct Buff {
     pub user: Player,
     pub source: BuffSource,
-    pub value: i8, //Let's see if future Kutschfahrt Expansions make scores over 127 possible (currently capped at ~25)
-    pub breaks_tie: i8 //This should have a sign too, so we can't use bool
+    pub raw_score: i8, // Raw score is twice actual strength and 1 if it breaks ties
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -210,7 +209,10 @@ pub enum Command {
     UsePriest { priest: bool },
     DeclareSupport { support: AttackSupport },
     Hypnotize { target: Option<Player> },
-    ItemOrJob { buff: Option<BuffSource> }, // None is passing
+    ItemOrJob { 
+        buff: Option<BuffSource>, // None is passing
+        target: Option<Player> // Only for poison mixer atm, will have additional uses in expansion
+    },
     ClaimReward { steal_items: bool },
     StealItem { item: Item, give_back: Option<Item> },
 
@@ -226,47 +228,21 @@ pub enum AttackRole {
 }
 
 impl BuffSource {
-    pub fn legal(&self, user_type: AttackRole) -> bool {
-        match user_type {
-            AttackRole::Attacker => {
-                match self {
-                    BuffSource::Item(Item::Dagger) | BuffSource::Item(Item::PoisonRing) | BuffSource::Job(Job::Thug) => true,
-                    _ => false
-                }
-            }
-            AttackRole::Defender => {
-                match self {
-                    BuffSource::Item(Item::Gloves) | BuffSource::Item(Item::PoisonRing) | BuffSource::Job(Job::GrandMaster) => true,
-                    _ => false
-                }
-            }
-            AttackRole::AttackSupport(AttackSupport::Attack) => {
-                match self {
-                    BuffSource::Item(Item::CastingKnives) | BuffSource::Job(Job::Bodyguard) => true,
-                    _ => false
-                }
-            }
-            AttackRole::AttackSupport(AttackSupport::Defend) => {
-                match self {
-                    BuffSource::Item(Item::Whip) | BuffSource::Job(Job::Bodyguard) => true,
-                    _ => false
-                }
-            }
-            AttackRole::AttackSupport(AttackSupport::Abstain) => false
-        }
-    }
-
-    pub fn score(&self) -> i8 {
-        match self {
-            BuffSource::Item(Item::PoisonRing) => 0,
-            _ => 1, // yeah sorry that's not exciting. We have no fancy expansion stuff yet
-        }
-    }
-
-    pub fn breaks_tie(&self) -> bool {
-        match self {
-            BuffSource::Item(Item::PoisonRing) => true,
-            _ => false,
+    pub fn raw_score(&self, user_type: AttackRole) -> Option<i8> {
+        match (self, user_type) {
+            (BuffSource::Item(Item::Dagger), AttackRole::Attacker) => Some(2),
+            (BuffSource::Job(Job::Thug), AttackRole::Attacker) => Some(2),
+            (BuffSource::Item(Item::Gloves), AttackRole::Defender) => Some(2),
+            (BuffSource::Job(Job::GrandMaster), AttackRole::Defender) => Some(2),
+            (BuffSource::Item(Item::PoisonRing), AttackRole::Defender) => Some(1),
+            (BuffSource::Item(Item::PoisonRing), AttackRole::Attacker) => Some(1),
+            (BuffSource::Job(Job::Duelist), AttackRole::Attacker) => Some(2),
+            (BuffSource::Job(Job::Duelist), AttackRole::Defender) => Some(2),
+            (BuffSource::Item(Item::CastingKnives), AttackRole::AttackSupport(AttackSupport::Attack)) => Some(2),
+            (BuffSource::Item(Item::Whip), AttackRole::AttackSupport(AttackSupport::Defend)) => Some(2),
+            (BuffSource::Job(Job::Bodyguard), AttackRole::AttackSupport(AttackSupport::Attack)) => Some(2),
+            (BuffSource::Job(Job::Bodyguard), AttackRole::AttackSupport(AttackSupport::Defend)) => Some(2),
+            _ => None
         }
     }
 }
@@ -276,7 +252,29 @@ impl AttackRole {
         match self {
             AttackRole::Attacker | AttackRole::AttackSupport(AttackSupport::Attack) => 1,
             AttackRole::Defender | AttackRole::AttackSupport(AttackSupport::Defend) => -1,
-            _ => 0
+            AttackRole::AttackSupport(AttackSupport::Abstain) => 0
         }
     }
 }
+
+impl PlayerState {
+    pub fn use_job(&mut self, job: Job) -> Result<(), JobUseError> {
+        if self.job == job && !(self.job_is_visible && job.once()) {
+            self.job_is_visible = true;
+            Ok(())
+        } else {
+            Err(JobUseError)
+        }
+    }
+}
+
+impl Job {
+    pub fn once(&self) -> bool {
+        match self {
+            Job::Clairvoyant | Job::Diplomat | Job::Doctor | Job::Duelist | Job::PoisonMixer | Job::Priest => true,
+            _ => false
+        }
+    }
+}
+#[derive(Debug)]
+pub struct JobUseError;

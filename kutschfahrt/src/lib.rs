@@ -34,8 +34,17 @@ pub enum CommandError {
     YouHaveAlreadyPassed,
     #[error("Invalid steal command")]
     InvalidStealCommand,
+    #[error("Not your job or job already used")]
+    JobError,
+    #[error("This item {0:?} is not a valid choice")]
+    InvalidItemError(Item),
 }
 
+impl From<JobUseError> for CommandError {
+    fn from(_: JobUseError) -> CommandError {
+        CommandError::JobError
+    }
+}
 
 impl GameState {
     fn next_player(&self, p: Player) -> Player {
@@ -138,42 +147,90 @@ impl State {
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
                 }
-                AttackState::ItemsOrJobs { votes, mut passed, mut buffs } => {
-                    if passed.contains(&actor) {
-                        return Err(CommandError::YouHaveAlreadyPassed);
+                AttackState::ItemsOrJobs { mut votes, mut passed, mut buffs } => {
+                    match votes.get(&actor) {
+                        Some(AttackSupport::Abstain) => return Err(CommandError::InvalidCommandInThisContext),
+                        _ if passed.contains(&actor) => return Err(CommandError::YouHaveAlreadyPassed),
+                        _ => ()
                     }
                     match c {
-                        Command::ItemOrJob { buff: None } => {
+                        // TODO: We might wanna warn the player if he specifies a target for a buff that doesn't need a target
+                        Command::ItemOrJob { buff: None, target: _ } => {
                             passed.insert(actor);
-                            if passed.len() == s.players.len() {
+                            if passed.len() == votes.values().filter(|&n| *n != AttackSupport::Abstain).count() + 2 {
                                 let score = (votes.values().filter(|&n| *n == AttackSupport::Attack).count() as i8)- // number of attack supporting players
                                             (votes.values().filter(|&n| *n == AttackSupport::Defend).count() as i8)+ // number of defense supporting players
-                                            (buffs.iter().map(|buff| buff.value).sum::<i8>());
-                                // TODO: actually resolve the fight here
-                                unimplemented!();
-                                //return Ok(TurnState::Attacking { attacker, defender, state: AttackState::Resolving })
+                                            (buffs.iter().map(|buff| buff.raw_score).sum::<i8>());
+                                if score == 0 {
+                                    if let Some(drawn_item) = s.item_stack.pop() {
+                                        // TODO: handle item limit
+                                        s.players.get_mut(&attacker).unwrap().items.push(drawn_item)
+                                    }
+                                    TurnState::WaitingForQuickblink(s.next_player(attacker))
+                                } else if score > 0 {
+                                    TurnState::Attacking { attacker, defender, state: AttackState::Resolving {winner: AttackWinner::Attacker} }
+                                } else {
+                                    TurnState::Attacking { attacker, defender, state: AttackState::Resolving {winner: AttackWinner::Defender} }
+                                }
+                            } else {
+                                TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed, buffs } }
                             }
                         }
-                        Command::ItemOrJob { buff: Some(buff) } => {
-                            let role = match actor {
-                                _ if actor == attacker => AttackRole::Attacker, // this is porbably dreadful but I couldn't find a way to do this better :(
-                                _ if actor == defender => AttackRole::Defender, // Yet, generally, I'd suggest replacing the votes hashmap by a roles hashmap
-                                _  => AttackRole::AttackSupport(votes[&actor])
+                        Command::ItemOrJob { buff: Some(buff), target } => {
+                            // Detemine actor's role in the struggle
+                            let role = if actor == attacker {
+                                AttackRole::Attacker
+                            } else if actor == defender {
+                                AttackRole::Defender
+                            } else {
+                                AttackRole::AttackSupport(votes[&actor])
                             };
-                            if !buff.legal(role) {
-                                return Err(CommandError::InvalidCommandInThisContext)
+                            // Check if using this buff is vaild for the player
+                            match buff {
+                                BuffSource::Item(x) if s.players.get(&actor).unwrap().items.contains(&x) => (),
+                                BuffSource::Job(x) => s.players.get_mut(&actor).unwrap().use_job(x)?,
+                                BuffSource::Item(x) => return Err(CommandError::InvalidItemError(x))
                             }
+                            // Check if using this buff is vaild for the player's role
+                            let raw_score = match buff.raw_score(role) {
+                                None => return Err(CommandError::InvalidCommandInThisContext),
+                                Some(x) => x
+                            };
                             buffs.push(Buff{
                                 user: actor,
-                                value: buff.score()*role.sign(),
-                                breaks_tie: (buff.breaks_tie() as i8)*role.sign(),
-                                source: buff,
+                                raw_score: raw_score*role.sign(),
+                                source: buff.clone(),
                             });
                             passed.clear();
+                            // resolve triggers
+                            match buff {
+                                BuffSource::Job(Job::Duelist) => {
+                                    for vote in votes.values_mut() {
+                                        *vote = AttackSupport::Abstain;
+                                    }
+                                    buffs.retain(|x| x.user == attacker || x.user == defender);
+                                    TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed, buffs } }
+                                }
+                                BuffSource::Job(Job::Doctor) => {
+                                    TurnState::WaitingForQuickblink(s.next_player(attacker))
+                                }
+                                BuffSource::Job(Job::PoisonMixer) => {
+                                    let winner = match target {
+                                        Some(x) if x == attacker => AttackWinner::Attacker,
+                                        Some(x) if x == defender => AttackWinner::Defender,
+                                        _ => return Err(CommandError::InvalidCommandInThisContext)
+                                    };
+                                    TurnState::Attacking { attacker, defender, state: AttackState::Resolving { winner } }
+                                }
+                                _ => {
+                                    TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed, buffs } }
+                                }
+                            }
+                            
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
-                    TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed, buffs } }
+                    
                 }
                 AttackState::Resolving { winner } => {
                     let winner_player = match winner {

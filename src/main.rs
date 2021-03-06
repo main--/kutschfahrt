@@ -26,13 +26,13 @@ fn main() {
     println!("{:#?}", state);
     state.apply_command(Player::Sarah, Command::DeclareSupport { support: AttackSupport::Attack }).unwrap();
     state.apply_command(Player::Zacharias, Command::Hypnotize { target: None }).unwrap();
-    state.apply_command(Player::Marie, Command::ItemOrJob { buff: None }).unwrap();
-    state.apply_command(Player::Gundla, Command::ItemOrJob { buff: None }).unwrap();
-    state.apply_command(Player::Zacharias, Command::ItemOrJob { buff: Some(BuffSource::Item(Item::PoisonRing)) }).unwrap();
-    state.apply_command(Player::Sarah, Command::ItemOrJob { buff: None }).unwrap();
-    state.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None }).unwrap();
-    state.apply_command(Player::Marie, Command::ItemOrJob { buff: None }).unwrap();
-    state.apply_command(Player::Gundla, Command::ItemOrJob { buff: None }).unwrap();
+    state.apply_command(Player::Marie, Command::ItemOrJob { buff: None, target: None }).unwrap();
+    state.apply_command(Player::Gundla, Command::ItemOrJob { buff: None, target: None }).unwrap();
+    state.apply_command(Player::Zacharias, Command::ItemOrJob { buff: Some(BuffSource::Item(Item::PoisonRing)), target: None }).unwrap();
+    state.apply_command(Player::Sarah, Command::ItemOrJob { buff: None, target: None }).unwrap();
+    state.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None, target: None }).unwrap();
+    state.apply_command(Player::Marie, Command::ItemOrJob { buff: None, target: None }).unwrap();
+    state.apply_command(Player::Gundla, Command::ItemOrJob { buff: None, target: None }).unwrap();
     
     state.apply_command(Player::Zacharias, Command::ClaimReward { steal_items: false }).unwrap();
     state.apply_command(Player::Zacharias, Command::DoneLookingAtThings).unwrap();
