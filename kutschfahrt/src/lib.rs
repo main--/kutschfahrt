@@ -32,6 +32,8 @@ pub enum CommandError {
     InvalidTargetPlayer,
     #[error("You have already passed")]
     YouHaveAlreadyPassed,
+    #[error("You have no part in this struggle")]
+    YouAbstained,
     #[error("Invalid steal command")]
     InvalidStealCommand,
     #[error("Not your job or job already used")]
@@ -151,11 +153,13 @@ impl State {
                     }
                 }
                 AttackState::ItemsOrJobs { mut votes, mut passed, mut buffs } => {
-                    match votes.get(&actor) {
-                        Some(AttackSupport::Abstain) => return Err(CommandError::InvalidCommandInThisContext),
-                        _ if passed.contains(&actor) => return Err(CommandError::YouHaveAlreadyPassed),
-                        _ => ()
+                    if passed.contains(&actor) {
+                        return Err(CommandError::YouHaveAlreadyPassed);
                     }
+                    if votes.get(&actor) == Some(&AttackSupport::Abstain) {
+                        return Err(CommandError::YouAbstained);
+                    }
+
                     match c {
                         // TODO: We might wanna warn the player if he specifies a target for a buff that doesn't need a target
                         Command::ItemOrJob { buff: None, target: _ } => {
@@ -203,11 +207,9 @@ impl State {
                             match buff {
                                 // triggers that end the fight:
                                 BuffSource::Job(Job::Doctor) => {
-                                    // TODO: is doctor allowed when you abstained?
                                     TurnState::WaitingForQuickblink(s.next_player(attacker))
                                 }
                                 BuffSource::Job(Job::PoisonMixer) => {
-                                    // TODO: is poison mixer allowed when you abstained?
                                     let winner = match target {
                                         Some(x) if x == attacker => AttackWinner::Attacker,
                                         Some(x) if x == defender => AttackWinner::Defender,
