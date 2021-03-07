@@ -151,7 +151,15 @@ pub enum TurnState {
     Give {
         giver: Player,
         recipient: Option<Player>,
-        next: Box<TurnState>
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub enum GameAction {
+    TurnState(TurnState),
+    Gain {
+        gainer: Player,
+        source: Option<(Player, Item)>
     }
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]

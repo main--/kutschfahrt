@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{alloc::take_alloc_error_hook, cmp::max, collections::{HashSet, HashMap}, usize};
+use std::{cmp::max, collections::{HashSet, HashMap}, usize};
 use std::iter;
 
 use indexmap::IndexMap;
@@ -20,6 +20,7 @@ pub struct GameState {
 pub struct State {
     game: GameState,
     pub turn: TurnState,
+    stack: Vec<GameAction>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -73,11 +74,11 @@ impl GameState {
             .filter(move |&x| x != attacker && x != defender)
     }
 
-    pub fn gain(&mut self, gainer: Player, source: Option<(Player, Item)>, next: Box<TurnState>) -> Result<TurnState, CommandError> {
+    pub fn gain(&mut self, gainer: Player, source: Option<(Player, Item)>) -> Result<Option<GameAction>, CommandError> {
         let (gained, give_back) = match source {
             None => match self.item_stack.pop() {
                 Some(item) => (item, None),
-                None => return Ok(*next),
+                None => return Ok(None),
             },
             Some((one, thing)) => {
                 let from = self.players.get_mut(&one).unwrap();
@@ -93,9 +94,9 @@ impl GameState {
         let gainer_state = self.players.get_mut(&gainer).unwrap();
         gainer_state.items.push(gained);
         let cool = if give_back.is_some() || gainer_state.items.len() > self.items_limit() {
-            TurnState::Give { giver: gainer, recipient: give_back, next: next }
+            Some(GameAction::TurnState(TurnState::Give { giver: gainer, recipient: give_back }))
         } else {
-            *next
+            None
         };
         Ok(cool)
     }
@@ -103,7 +104,7 @@ impl GameState {
 impl State {
     pub fn apply_command(&mut self, actor: Player, c: Command) -> Result<(), CommandError> {
         let s = &mut self.game;
-        self.turn = match self.turn.clone() {
+        match self.turn.clone() {
             TurnState::WaitingForQuickblink(p) => {
                 if actor != p {
                     return Err(CommandError::NotYourTurn);
@@ -111,7 +112,7 @@ impl State {
 
                 match c {
                     Command::Pass => {
-                        TurnState::WaitingForQuickblink(s.next_player(p))
+                        self.stack.push(GameAction::TurnState(TurnState::WaitingForQuickblink(s.next_player(p))))
                     }
                     Command::AnnounceVictory { teammates } => {
                         unimplemented!();
@@ -120,17 +121,17 @@ impl State {
                         if !s.players.contains_key(&target) || actor == target || !s.players.get(&actor).unwrap().items.contains(&item) {
                             return Err(CommandError::InvalidTargetPlayer);
                         }
-                        TurnState::TradePending { offerer: actor, target, item }
+                        self.stack.push(GameAction::TurnState(TurnState::TradePending { offerer: actor, target, item }))
                     }
                     Command::InitiateAttack { player } => {
                         if !s.players.contains_key(&player) || actor == player {
                             return Err(CommandError::InvalidTargetPlayer);
                         }
-                        TurnState::Attacking {
+                        self.stack.push(GameAction::TurnState(TurnState::Attacking {
                             attacker: actor,
                             defender: player,
                             state: AttackState::WaitingForPriest { passed: HashSet::new() },
-                        }
+                        }))
                     }
                     _ => return Err(CommandError::InvalidCommandInThisContext),
                 }
@@ -156,7 +157,7 @@ impl State {
                             } else {
                                 AttackState::WaitingForPriest { passed }
                             };
-                            TurnState::Attacking { attacker, defender, state }
+                            self.stack.push(GameAction::TurnState(TurnState::Attacking { attacker, defender, state }))
                         },
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
@@ -170,9 +171,9 @@ impl State {
                         Command::DeclareSupport { support } => {
                             votes.insert(actor, support);
                             if votes.len() == s.players.len() - 2 {
-                                TurnState::Attacking { attacker, defender, state: AttackState::WaitingForHypnotizer(votes) }
+                                self.stack.push(GameAction::TurnState(TurnState::Attacking { attacker, defender, state: AttackState::WaitingForHypnotizer(votes) }))
                             } else {
-                                TurnState::Attacking { attacker, defender, state: AttackState::DeclaringSupport(votes) }
+                                self.stack.push(GameAction::TurnState(TurnState::Attacking { attacker, defender, state: AttackState::DeclaringSupport(votes) }))
                             }
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
@@ -187,7 +188,7 @@ impl State {
                             if let Some(target) = target {
                                 votes.insert(target, AttackSupport::Abstain);
                             }
-                            TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed: HashSet::new(), buffs: Vec::new() }}
+                            self.stack.push(GameAction::TurnState(TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed: HashSet::new(), buffs: Vec::new() }}))
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
@@ -210,17 +211,17 @@ impl State {
                                         // TODO: handle item limit
                                         s.players.get_mut(&attacker).unwrap().items.push(drawn_item)
                                     }
-                                    TurnState::WaitingForQuickblink(s.next_player(attacker))
+                                    self.stack.push(GameAction::TurnState(TurnState::WaitingForQuickblink(s.next_player(attacker))))
                                 } else {
                                     let winner = if score > 0 {
                                         AttackWinner::Attacker
                                     } else {
                                         AttackWinner::Defender
                                     };
-                                    TurnState::Attacking { attacker, defender, state: AttackState::Resolving { winner } }
+                                    self.stack.push(GameAction::TurnState(TurnState::Attacking { attacker, defender, state: AttackState::Resolving { winner } }))
                                 }
                             } else {
-                                TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed, buffs } }
+                                self.stack.push(GameAction::TurnState(TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed, buffs } }))
                             }
                         }
                         Command::ItemOrJob { buff: Some(buff), target } => {
@@ -244,7 +245,7 @@ impl State {
                             match buff {
                                 // triggers that end the fight:
                                 BuffSource::Job(Job::Doctor) => {
-                                    TurnState::WaitingForQuickblink(s.next_player(attacker))
+                                    self.stack.push(GameAction::TurnState(TurnState::WaitingForQuickblink(s.next_player(attacker))))
                                 }
                                 BuffSource::Job(Job::PoisonMixer) => {
                                     let winner = match target {
@@ -252,7 +253,7 @@ impl State {
                                         Some(x) if x == defender => AttackWinner::Defender,
                                         _ => return Err(CommandError::InvalidCommandInThisContext)
                                     };
-                                    TurnState::Attacking { attacker, defender, state: AttackState::Resolving { winner } }
+                                    self.stack.push(GameAction::TurnState(TurnState::Attacking { attacker, defender, state: AttackState::Resolving { winner } }))
                                 }
                                 buff => {
                                     // Check if using this buff is vaild for the player's role
@@ -269,7 +270,7 @@ impl State {
                                     buffs.push(Buff { user: actor, raw_score, source: buff });
                                     passed.clear();
 
-                                    TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed, buffs } }
+                                    self.stack.push(GameAction::TurnState(TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed, buffs } }))
                                 }
                             }
                         }
@@ -287,7 +288,7 @@ impl State {
                     }
                     match c {
                         Command::ClaimReward { steal_items } => {
-                            TurnState::Attacking { attacker, defender, state: AttackState::FinishResolving { winner, steal_items } }
+                            self.stack.push(GameAction::TurnState(TurnState::Attacking { attacker, defender, state: AttackState::FinishResolving { winner, steal_items } }))
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
@@ -300,18 +301,18 @@ impl State {
                     if actor != winner_player {
                         return Err(CommandError::NotYourTurn);
                     }
-                    let waiting = TurnState::WaitingForQuickblink(s.next_player(attacker));
+                    self.stack.push(GameAction::TurnState(TurnState::WaitingForQuickblink(s.next_player(attacker))));
                     match c {
-                        Command::DoneLookingAtThings if !steal_items => waiting,
+                        Command::DoneLookingAtThings if !steal_items => (),
                         Command::StealItem { item } if steal_items => {
                             // borrowing is easy now :) Or I messed something up terribly :(
-                            s.gain(winner_player, Some((loser_player, item)), Box::new(waiting))?
+                            self.stack.push(GameAction::Gain {gainer: winner_player, source: Some((loser_player, item))});
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
                 }
             }
-            TurnState::Give { giver, next, recipient } => {
+            TurnState::Give { giver, recipient } => {
                 if actor != giver {
                     return Err(CommandError::NotYourTurn);
                 }
@@ -324,13 +325,27 @@ impl State {
                             None if s.players.get(&target).unwrap().items.len() < s.items_limit() => (),
                             _ => return Err(CommandError::InvalidTargetPlayer), // free recipient: recipient must be below item cap
                         }
-                        s.gain(target, Some((giver, item)), next)?
+                        self.stack.push(GameAction::Gain {gainer: target, source: Some((giver, item))})
                     }
                     _ => return Err(CommandError::InvalidCommandInThisContext),
                 }
             }
             _ => unimplemented!(),
         };
+
+        while let Some(action) = self.stack.pop() {
+            match action {
+                GameAction::TurnState(turn_state) => {
+                    self.turn = turn_state;
+                    break;
+                }
+                GameAction::Gain { gainer, source } => {
+                    if let Some(new_action) = s.gain(gainer, source)? {
+                        self.stack.push(new_action);
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
@@ -397,6 +412,7 @@ impl State {
                     .map(|(((&player, item), &mut job), &mut faction)| (player, PlayerState { faction, job, job_is_visible: false, items: vec![item] })).collect(),
             },
             turn: TurnState::WaitingForQuickblink(players[0]),
+            stack: Vec::new(),
         }
     }
     pub fn perspective(&self, p: Player) -> Perspective {
