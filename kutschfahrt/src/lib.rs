@@ -41,6 +41,8 @@ pub enum CommandError {
     JobError,
     #[error("This item {0:?} is not a valid choice")]
     InvalidItemError(Item),
+    #[error("You cannot decline this trade")]
+    MustAccept,
 }
 
 impl From<JobUseError> for CommandError {
@@ -99,6 +101,30 @@ impl GameState {
             None
         };
         Ok(cool)
+    }
+
+    pub fn trade(&mut self, offerer: Player, accepter: Player, forth: Item, back: Item) -> Result<Option<GameAction>, CommandError> {
+        // Borrowing is indeed complicated :(
+        let offerer_index= 0; // TODO
+        let accepter_index= 0; // TODO
+        // let Some(offerer_index) = self.players.get(&offerer).unwrap().items.iter().position(|x| *x == forth);
+        // let Some(accepter_index) = self.players.get(&accepter).unwrap().items.iter().position(|x| *x == back);
+
+        {
+            let offerer_state = self.players.get_mut(&offerer).unwrap();
+            offerer_state.items.remove(offerer_index);
+            offerer_state.items.push(back);
+        }
+        {
+            let accepter_state = self.players.get_mut(&accepter).unwrap();
+            accepter_state.items.remove(accepter_index);
+            accepter_state.items.push(forth);
+        }
+        Ok(None)
+    }
+    
+    pub fn resolve_trade(&mut self, from: Player, to: Player, item: Item) -> Result<Option<GameAction>, CommandError> {
+        Ok(None) //TODO
     }
 }
 impl State {
@@ -330,6 +356,53 @@ impl State {
                     _ => return Err(CommandError::InvalidCommandInThisContext),
                 }
             }
+            TurnState::TradePending { offerer, target, item } => {
+                 if actor != target {
+                     return Err(CommandError::NotYourTurn);
+                 }
+
+                match c {
+                    Command::AcceptTrade { returned } => {
+                        let returner_state = s.players.get(&target).unwrap();
+
+                        if !returner_state.items.contains(&returned) {
+                            return Err(CommandError::InvalidItemError(returned));
+                        } else if (item, returned) == (Item::BagGoblet, Item::BagKey) {
+                            return Err(CommandError::InvalidItemError(returned));
+                        } else if (item, returned) == (Item::BagKey, Item::BagGoblet) {
+                            return Err(CommandError::InvalidItemError(returned));
+                        } // Maybe this can be done in a nicer way
+
+                        self.stack.push(GameAction::Trade { accepter: target, offerer, forth: item, back: returned } );
+
+                        match returned.trigger() {
+                            Some((trigger, optional)) => {
+                                self.stack.push(GameAction::ResolveItem { from: target, to: offerer, item: returned });
+                                if optional {
+                                    self.stack.push(GameAction::TurnState(TurnState::ResolvingTradeTrigger { from: target, to: offerer, trigger: TradeTriggerState::Decide { item: returned } } ));
+                                }
+                            }
+                            _ => {}
+                        }
+                        match item.trigger() {
+                            Some((trigger, optional)) => {
+                                self.stack.push(GameAction::ResolveItem { from: offerer, to: target, item });
+                                if optional {
+                                    self.stack.push(GameAction::TurnState(TurnState::ResolvingTradeTrigger { from: offerer, to: target, trigger: TradeTriggerState::Decide { item: returned } }));
+                                }
+                            }
+                            _ => {}
+                        }
+                    },
+                    Command::RejectTrade => {
+                        if !item.rejectable() {
+                            return Err(CommandError::MustAccept);
+                        }
+                        self.stack.push(GameAction::TurnState(TurnState::WaitingForQuickblink(s.next_player(offerer))));
+                    }
+                    _ => return Err(CommandError::InvalidCommandInThisContext)
+                 }
+            }
             _ => unimplemented!(),
         };
 
@@ -341,6 +414,16 @@ impl State {
                 }
                 GameAction::Gain { gainer, source } => {
                     if let Some(new_action) = s.gain(gainer, source)? {
+                        self.stack.push(new_action);
+                    }
+                }
+                GameAction::Trade { offerer, accepter, forth, back } => {
+                    if let Some(new_action) = s.trade(offerer, accepter, forth, back)? {
+                        self.stack.push(new_action);
+                    }
+                }
+                GameAction::ResolveItem { from, to, item } => {
+                    if let Some(new_action) = s.resolve_trade(from, to, item )? {
                         self.stack.push(new_action);
                     }
                 }
@@ -422,13 +505,13 @@ impl State {
             &TurnState::GameOver { winner } => GameOver { winner },
             &TurnState::TradePending { offerer, target, item } if target == p => TradePending { offerer, target, item: Some(item) },
             &TurnState::TradePending { offerer, target, .. } => TradePending { offerer, target, item: None },
-            &TurnState::ResolvingTradeTrigger { offerer, target, ref trigger, .. } => {
+            &TurnState::ResolvingTradeTrigger { from, to, ref trigger, .. } => {
                 let trigger = match trigger {
                     TradeTriggerState::Sextant { .. } =>
                         TradeTriggerState::Sextant { item_selections: HashMap::new() },
                     t => t.clone(),
                 };
-                ResolvingTradeTrigger { offerer, target, trigger }
+                ResolvingTradeTrigger { from, to, trigger }
             }
             &TurnState::Attacking { attacker, defender, ref state } => {
                 let myself = if p == attacker {

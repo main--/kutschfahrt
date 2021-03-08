@@ -70,7 +70,7 @@ pub enum PerspectiveTurnState {
     TurnStart { player: Player },
     GameOver { winner: Faction },
     TradePending { offerer: Player, target: Player, item: Option<Item> },
-    ResolvingTradeTrigger { offerer: Player, target: Player, trigger: TradeTriggerState }, // for sextant, item selections are cleared
+    ResolvingTradeTrigger { from: Player, to: Player, trigger: TradeTriggerState }, // for sextant, item selections are cleared
     Attacking { attacker: Player, defender: Player, state: PerspectiveAttackState }, // AttackState info is always public
     Give { giver: Player, recipient: Option<Player>, }
 }
@@ -109,6 +109,52 @@ pub enum Item {
     Tome, // trigger: trade occupation
     CoatOfArmorOfTheLoge
 }
+
+impl Item {
+    pub fn rejectable(&self) -> bool {
+        match self {
+            Item::BlackPearl | Item::BrokenMirror => false,
+            _ => true,
+        }
+    }
+
+    pub fn has_trigger(&self) -> bool {
+        match self {
+            Item::BagGoblet | Item::BagKey | Item::Priviledge | Item::Monocle | Item::Sextant => true,
+            _ => false,
+        }
+    }
+
+    pub fn trigger(&self) -> Option<(TradeTriggerType, bool)> {
+        match self {
+            Item::BagGoblet | Item::BagKey => Some((TradeTriggerType::Bag, true)),
+            Item::Priviledge => Some((TradeTriggerType::Priviledge, true)),
+            Item::Monocle => Some((TradeTriggerType::Monocle, true)),
+            Item::Sextant => Some((TradeTriggerType::Sextant, false)),
+            Item::Coat => Some((TradeTriggerType::Coat, true)),
+            Item::Tome => Some((TradeTriggerType::Tome, true)),
+            _ => None
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct TradeTrigger {
+    pub from: Player,
+    pub to: Player,
+    pub trigger_type: TradeTriggerType,
+}
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
+pub enum TradeTriggerType {
+    Bag,
+    Priviledge,
+    Monocle,
+    Sextant,
+    Coat,
+    Tome,
+    Confirm(Item)
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Job {
     Thug,
@@ -138,9 +184,8 @@ pub enum TurnState {
         item: Item,
     },
     ResolvingTradeTrigger {
-        offerer: Player,
-        target: Player,
-        next_item: Option<Item>,
+        from: Player,
+        to: Player,
         trigger: TradeTriggerState,
     },
     Attacking {
@@ -160,7 +205,18 @@ pub enum GameAction {
     Gain {
         gainer: Player,
         source: Option<(Player, Item)>
-    }
+    },
+    Trade {
+        offerer: Player,
+        accepter: Player,
+        forth: Item,
+        back: Item,
+    },
+    ResolveItem {
+        from: Player,
+        to: Player,
+        item: Item
+    },
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum AttackState {
@@ -219,6 +275,7 @@ impl AttackSupport {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TradeTriggerState {
+    Decide { item: Item },
     Priviledge,
     Monocle,
     Coat,
@@ -233,7 +290,7 @@ pub enum Command {
 
     OfferTrade { target: Player, item: Item },
     RejectTrade,
-    AcceptTrade { item: Item },
+    AcceptTrade { returned: Item },
     PickNewJob { job: Job },
     SelectSextantItem { item: Item },
 
