@@ -254,7 +254,7 @@ fn game_ui(props: &GameUiProps) -> Html {
             match &p.turn {
                 PerspectiveTurnState::TurnStart { player } if player == &me.player => html! { <modname::MyTurnStart perspective={p.clone()} /> },
                 PerspectiveTurnState::TurnStart { player } => html! { {format!("Waiting for {} ...", player)} },
-                PerspectiveTurnState::GameOver { winner } => todo!(),
+                PerspectiveTurnState::GameOver { winner } => html! { {format!("The {:?} is victorious!", winner)} },
                 PerspectiveTurnState::TradePending { offerer, target, item } => todo!(),
                 PerspectiveTurnState::ResolvingTradeTrigger { offerer, target, trigger } => todo!(),
                 PerspectiveTurnState::Attacking { attacker, defender, state } => todo!(),
