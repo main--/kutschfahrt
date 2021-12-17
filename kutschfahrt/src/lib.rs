@@ -76,8 +76,42 @@ impl State {
                     Command::Pass => {
                         TurnState::WaitingForQuickblink(s.next_player(p))
                     }
-                    Command::AnnounceVictory { teammates } => {
-                        unimplemented!();
+                    Command::AnnounceVictory { mut teammates } => {
+                        let faction = s.players.get(&actor).unwrap().faction;
+                        let required_items = match faction {
+                            Faction::Order => [Item::Goblet, Item::BagGoblet],
+                            Faction::Brotherhood => [Item::Key, Item::BagKey],
+                        };
+
+                        let required_items = if s.item_stack.is_empty() {
+                            &required_items[..]
+                        } else {
+                            &required_items[..1]
+                        };
+
+                        teammates.push(actor);
+                        let mut victory = true;
+                        let mut total_victory_items = 0;
+                        for t in teammates {
+                            let ts = s.players.get(&t).unwrap();
+                            let victory_items = ts.items.iter().copied().filter(|i| required_items.contains(i)).count();
+                            if victory_items == 0 || ts.faction != faction {
+                                victory = false;
+                                break;
+                            }
+                            total_victory_items += victory_items;
+                        }
+                        victory &= total_victory_items >= 3;
+
+                        if victory {
+                            TurnState::GameOver { winner: faction }
+                        } else {
+                            let winner = match faction {
+                                Faction::Order => Faction::Brotherhood,
+                                Faction::Brotherhood => Faction::Order,
+                            };
+                            TurnState::GameOver { winner }
+                        }
                     }
                     Command::OfferTrade { target, item } => {
                         unimplemented!();
