@@ -4,14 +4,12 @@
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 use console_error_panic_hook::set_once as set_panic_hook;
+use gloo_utils::window;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use ybc::TileCtx::{Ancestor, Child, Parent};
 use yew::prelude::*;
-use yew::utils::window;
-//use yewtil::PureComponent;
-use yewtil::future::LinkFuture;
+use yew_router::prelude::*;
 
 use web_protocol::MyState;
 
@@ -19,23 +17,20 @@ mod ingame;
 
 
 
-use yew_router::{Switch, router::Router};
-type RouterAnchor = yew_router::prelude::RouterAnchor<AppRoute>;
-
-#[derive(Clone, Debug, Switch)]
+#[derive(Clone, Debug, PartialEq, Routable)]
 pub enum AppRoute {
-    #[to = "/game/{}"]
-    Game(String),
-    #[to = "/"]
+    #[at("/game/:id")]
+    Game { id: String },
+    #[at("/")]
     Home,
 }
+type Link = yew_router::prelude::Link<AppRoute>;
 
 
 
 
 struct App {
     my_state: Option<MyState>,
-    link: ComponentLink<Self>,
 }
 
 
@@ -58,7 +53,7 @@ async fn post_json<T: serde::Serialize>(path: &str, body: &T) {
     opts.method("POST");
     opts.body(Some(&JsValue::from(&body)));
     let request = web_sys::Request::new_with_str_and_init(path, &opts).unwrap();
-    let resp = JsFuture::from(window().fetch_with_request(&request)).await.unwrap();
+    let _resp = JsFuture::from(window().fetch_with_request(&request)).await.unwrap();
     /*let resp: web_sys::Response = resp.dyn_into().unwrap();
     let text = JsFuture::from(resp.text().unwrap()).await.unwrap();
     let text = text.as_string().unwrap();
@@ -66,28 +61,28 @@ async fn post_json<T: serde::Serialize>(path: &str, body: &T) {
 }
 
 fn view_game_item(game: String) -> Html {
-    html! { <li><RouterAnchor route=AppRoute::Game(game.clone())>{game}</RouterAnchor></li> }
+    html! { <li><Link to={AppRoute::Game { id: game.clone() }}>{game}</Link></li> }
 }
-fn view_content(r: AppRoute, my_games: Vec<String>) -> Html {
+fn view_content(r: &AppRoute, my_games: Vec<String>) -> Html {
     match r {
         AppRoute::Home => html! {
-            <ybc::Section>
-                <ybc::Title>{"Your Games"}</ybc::Title>
-                <ybc::Content>
+            <div>
+                <h3 class="title">{"Your Games"}</h3>
+                <div class="content">
                     <ul>
                         {for my_games.into_iter().map(|g| view_game_item(g))}
-                        <li><RouterAnchor route=AppRoute::Game(uuid::Uuid::new_v4().to_string())>{"+ New Game"}</RouterAnchor></li>
+                        <li><Link to={AppRoute::Game { id: uuid::Uuid::new_v4().to_string() }}>{"+ New Game"}</Link></li>
                     </ul>
-                </ybc::Content>
-            </ybc::Section>
+                </div>
+            </div>
         },
-        AppRoute::Game(g) => html! {
-            <ybc::Section>
-                <ybc::Title>{format!("Game '{}'", g)}</ybc::Title>
-                <ybc::Content>
-                    <ingame::Ingame game=g />
-                </ybc::Content>
-            </ybc::Section>
+        AppRoute::Game { id: g } => html! {
+            <div class="content">
+                <h1>{format!("Game '{}'", g)}</h1>
+                <div>
+                    <ingame::Ingame game={g.clone()} />
+                </div>
+            </div>
         },
     }
 }
@@ -95,15 +90,12 @@ impl Component for App {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        link.send_future(async { Msg::GotState(fetch_json("/api/me").await) });
-        App {
-            my_state: None,
-            link,
-        }
+    fn create(ctx: &Context<Self>) -> Self {
+        ctx.link().send_future(async { Msg::GotState(fetch_json("/api/me").await) });
+        App { my_state: None }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::GotState(s) => {
                 self.my_state = Some(s);
@@ -120,50 +112,45 @@ impl Component for App {
         true
     }
 
-    fn change(&mut self, _: Self::Properties) -> bool {
-        false
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         let login_btn = match self.my_state {
             None => html! { <div /> },
-            Some(MyState::LoggedOut) => html! { <ybc::Button classes="is-black is-outlined" onclick=self.link.callback(|_| Msg::Login)>{"Login"}</ybc::Button> },
-            Some(MyState::LoggedIn { .. }) => html! { <ybc::Button classes="is-black is-outlined" onclick=self.link.callback(|_| Msg::Logout)>{"Logout"}</ybc::Button> },
+            Some(MyState::LoggedOut) => html! { <button class="button is-black is-outlined" onclick={ctx.link().callback(|_| Msg::Login)}>{"Login"}</button> },
+            Some(MyState::LoggedIn { .. }) => html! { <button class="button is-black is-outlined" onclick={ctx.link().callback(|_| Msg::Logout)}>{"Logout"}</button> },
         };
         let (my_games, logged_in) = match &self.my_state {
             Some(MyState::LoggedIn { my_games }) => (my_games.clone(), true),
             _ => (vec![], false),
         };
         html! {
-            <>
-                <ybc::Navbar
-                    classes="is-success"
-                    padded=true
-                    navbrand=html!{
-                        <ybc::NavbarItem>
-                            <ybc::Title classes="has-text-white" size=ybc::HeaderSize::Is4>{"Kutschfahrt"}</ybc::Title>
-                        </ybc::NavbarItem>
-                    }
-                    navstart=html!{}
-                    navend=html!{
-                        <>
-                            <ybc::NavbarItem>
-                                {login_btn}
-                            </ybc::NavbarItem>
-                        </>
-                    }
-                />
+            <BrowserRouter>
+                <nav class="navbar is-success">
+                    <div class="container">
+                        <div class="navbar-brand">
+                            <div class="navbar-item">
+                                <h3 class="title has-text-white is-4">{"Kutschfahrt"}</h3>
+                            </div>
+                        </div>
+                        <div class="navbar-menu">
+                            <div class="navbar-end">
+                                <div class="navbar-item">
+                                    {login_btn}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </nav>
 
-                <ybc::Container classes="is-centered">
+                <div class="container is-centered">
                     {if logged_in { html! {
-                        <Router<AppRoute>
-                            render=Router::render(move |r| view_content(r, my_games.clone()))
+                        <Switch<AppRoute>
+                            render={Switch::render(move |r| view_content(r, my_games.clone()))}
                         />
                     } } else { html! {
                         {"Please log in."}
                     } }}
-                </ybc::Container>
-            </>
+                </div>
+            </BrowserRouter>
         }
     }
 }

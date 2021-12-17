@@ -1,19 +1,15 @@
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
+use gloo_timers::future::TimeoutFuture;
+use web_sys::HtmlInputElement;
 use yew::prelude::*;
-use yew::events::{InputData, KeyboardEvent};
-use yewtil::future::LinkFuture;
-use js_sys::Promise;
 use web_protocol::GameInfo;
 
 pub struct Ingame {
     game: String,
     game_info: Option<GameInfo>,
     command: String,
-    link: ComponentLink<Self>,
 }
 
-#[derive(Clone, Properties)]
+#[derive(Clone, PartialEq, Properties)]
 pub struct Props {
     pub game: String,
 }
@@ -25,44 +21,40 @@ pub enum Msg {
 }
 
 async fn update_state(s: String) -> Msg {
-    JsFuture::from(sleep(1000)).await.unwrap();
+    //JsFuture::from(sleep(1000)).await.unwrap();
+    TimeoutFuture::new(1000).await;
     let path = format!("/api/game/{}", s);
     Msg::Refresh(super::fetch_json(&path).await)
 }
 
-#[wasm_bindgen(inline_js = "export function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }")]
-extern "C" {
-    fn sleep(ms: i32) -> Promise;
-}
-
 impl Ingame {
-    fn trigger_refresh(&self) {
+    fn trigger_refresh(&self, ctx: &Context<Self>) {
         let game = self.game.clone();
-        self.link.send_future(async move { update_state(game).await });
+        ctx.link().send_future(async move { update_state(game).await });
     }
 }
 impl Component for Ingame {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(p: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let i = Ingame {
-            game: p.game,
+            game: ctx.props().game.clone(),
             game_info: None,
             command: String::new(),
-            link,
         };
-        i.trigger_refresh();
+        i.trigger_refresh(ctx);
         i
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Refresh(info) => {
                 self.game_info = Some(info);
-                self.trigger_refresh();
+                self.trigger_refresh(ctx);
             }
             Msg::TypeCommand(s) => {
+                gloo_console::log!("typecommand", &s);
                 self.command = s;
             }
             Msg::Submit => {
@@ -78,26 +70,22 @@ impl Component for Ingame {
         true
     }
 
-    fn change(&mut self, _: Self::Properties) -> bool {
-        false
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
             <>
                 <pre>
-                {serde_json::to_string_pretty(&self.game_info).unwrap()}
+                    {serde_json::to_string_pretty(&self.game_info).unwrap()}
                 </pre>
                 <input
-                    value=&self.command
-                    oninput=self.link.callback(|e: InputData| Msg::TypeCommand(e.value))
-                    onkeypress=self.link.batch_callback(|e: KeyboardEvent| {
+                    value={self.command.clone()}
+                    oninput={ctx.link().callback(|e: InputEvent| { let input: HtmlInputElement = e.target_unchecked_into(); Msg::TypeCommand(input.value()) })}
+                    onkeypress={ctx.link().batch_callback(|e: KeyboardEvent| {
                         if e.key() == "Enter" {
                             vec![Msg::Submit]
                         } else {
                             vec![]
                         }
-                    })
+                    })}
                 />
             </>
         }

@@ -7,9 +7,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde = { version = "1.0.123", features = ["derive"] }
+serde = { version = "1.0.132", features = ["derive"] }
 indexmap = { version = "=1.6.2", features = ["serde-1"] }
-rand = "0.8.3"
-thiserror = "1.0.24"
+rand = "0.8.4"
+thiserror = "1.0.30"
 web_protocol = { path = "../web_protocol" }
 
