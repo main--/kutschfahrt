@@ -1,3 +1,40 @@
 input {
     width: 100%;
 }
+
+.hud {
+    user-select: none;
+    .playerlist {
+        max-width: 15em;
+        border: 1px solid black;
+        .entry {
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+
+            .name {
+                flex-grow: 1;
+            }
+
+            &.selectable {
+                cursor: pointer;
+            }
+            &.selected {
+                background-color: red;
+            }
+        }
+    }
+    .itemlist {
+        display: flex;
+        flex-direction: row;
+        .entry {
+            border: 1px solid black;
+            &.selectable {
+                cursor: pointer;
+            }
+            &.selected {
+                background-color: red;
+            }
+        }
+    }
+}
