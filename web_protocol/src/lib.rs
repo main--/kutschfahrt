@@ -9,12 +9,12 @@ pub enum MyState {
     },
     LoggedOut,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub enum GameInfo {
     WaitingForPlayers { players: Vec<Player>, you: Option<Player> },
     Game(Perspective),
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum GameCommand {
     JoinGame(Player),
     LeaveGame,
@@ -23,12 +23,17 @@ pub enum GameCommand {
 }
 
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy, enum_utils::FromStr)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy, enum_utils::FromStr, enum_utils::IterVariants)]
 pub enum Player {
     Gundla,
     Sarah,
     Marie,
     Zacharias,
+}
+impl Player {
+    pub fn all() -> impl Iterator<Item = Player> + Clone {
+        Self::iter()
+    }
 }
 impl std::fmt::Display for Player {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -50,7 +55,7 @@ Sir Henry Sinclair
 
 /// A perspective is like `State` but contanis only information
 /// that a particular player is allowed to see.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Perspective {
     pub you: PlayerState,
     pub your_player_index: usize,
@@ -59,13 +64,13 @@ pub struct Perspective {
     pub item_stack: usize,
     pub turn: PerspectiveTurnState,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct PerspectivePlayer {
     pub player: Player,
     pub job: Option<Job>,
     pub item_count: usize,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum PerspectiveTurnState {
     TurnStart { player: Player },
     GameOver { winner: Faction },
@@ -73,7 +78,7 @@ pub enum PerspectiveTurnState {
     ResolvingTradeTrigger { offerer: Player, target: Player, trigger: TradeTriggerState }, // for sextant, item selections are cleared
     Attacking { attacker: Player, defender: Player, state: PerspectiveAttackState }, // AttackState info ís always public
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum PerspectiveAttackState {
     Normal(AttackState),
     FinishResolvingCredentials { target_faction: Faction, target_job: Job },
@@ -81,7 +86,7 @@ pub enum PerspectiveAttackState {
 }
 
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct PlayerState {
     pub faction: Faction,
     pub job: Job,
@@ -94,7 +99,7 @@ pub enum Item {
     Goblet,
     BagKey, // trigger: bag
     BagGoblet, // trigger: bag
-    BlackPearl, 
+    BlackPearl,
     Dagger,
     Gloves,
     PoisonRing,
@@ -227,7 +232,7 @@ pub enum Command {
     UsePriest { priest: bool },
     DeclareSupport { support: AttackSupport },
     Hypnotize { target: Option<Player> },
-    ItemOrJob { 
+    ItemOrJob {
         buff: Option<BuffSource>, // None is passing
         target: Option<Player> // Only for poison mixer atm, will have additional uses in expansion
     },

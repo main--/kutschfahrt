@@ -239,7 +239,7 @@ impl State {
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
-                    
+
                 }
                 AttackState::Resolving { winner } => {
                     let winner_player = match winner {
@@ -319,7 +319,7 @@ impl State {
             Item::Goblet,
             Item::Goblet,
             Item::Goblet,
-            Item::BlackPearl, 
+            Item::BlackPearl,
             Item::Dagger,
             Item::Gloves,
             Item::PoisonRing,

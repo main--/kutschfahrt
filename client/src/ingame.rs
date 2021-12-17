@@ -1,7 +1,8 @@
+use gloo_console::log;
 use gloo_timers::future::TimeoutFuture;
-use web_sys::HtmlInputElement;
+use web_sys::{HtmlInputElement, HtmlSelectElement};
 use yew::prelude::*;
-use web_protocol::GameInfo;
+use web_protocol::{GameInfo, Player, GameCommand};
 
 pub struct Ingame {
     game: String,
@@ -21,7 +22,6 @@ pub enum Msg {
 }
 
 async fn update_state(s: String) -> Msg {
-    //JsFuture::from(sleep(1000)).await.unwrap();
     TimeoutFuture::new(1000).await;
     let path = format!("/api/game/{}", s);
     Msg::Refresh(super::fetch_json(&path).await)
@@ -87,7 +87,80 @@ impl Component for Ingame {
                         }
                     })}
                 />
+                <ContextProvider<Commander> context={Commander { game: self.game.clone() }}>
+                    {self.game_info.clone().map(|g| html! { <GameUi gamestate={g} /> }).into_iter().collect::<Html>()}
+                </ContextProvider<Commander>>
             </>
         }
+    }
+}
+
+
+#[derive(Clone, PartialEq)]
+struct Commander {
+    game: String,
+}
+impl Commander {
+    fn cmd(&self, cmd: GameCommand) {
+        log!("Sending command", format!("{:?}", cmd));
+        let path = format!("/api/game/{}", self.game);
+        wasm_bindgen_futures::spawn_local(async move {
+            super::post_json(&path, &cmd).await;
+        });
+    }
+}
+
+#[derive(Properties, PartialEq)]
+struct GameUiProps {
+    pub gamestate: GameInfo,
+}
+
+#[function_component(GameUi)]
+fn game_ui(props: &GameUiProps) -> Html {
+    let cmd = use_context::<Commander>().unwrap();
+    match &props.gamestate {
+        GameInfo::WaitingForPlayers { players, you } => html! {
+            <div class="content">
+                {"Players:"}
+                <ul>
+                    {for players.iter().map(|p| html! { <li key={p.to_string()}>{if Some(p) == you.as_ref() { format!("{} (you)", p) } else { p.to_string() }}</li> })}
+                </ul>
+                {match you {
+                    None => html! { <PlayerSelection players={players.clone()} /> },
+                    Some(_) => html! {
+                        <button class="button" onclick={Callback::once(move |_| cmd.cmd(GameCommand::LeaveGame))}>{"Leave"}</button>
+                    },
+                }}
+            </div>
+        },
+        GameInfo::Game(_) => html! {},
+    }
+}
+
+#[derive(Properties, PartialEq)]
+struct PlayerSelectionProps {
+    pub players: Vec<Player>,
+}
+
+#[function_component(PlayerSelection)]
+fn player_selection(props: &PlayerSelectionProps) -> Html {
+    let avail_players = Player::all().filter(|p| !props.players.contains(&p));
+    let selected_join_player = use_state(|| avail_players.clone().next().unwrap());
+    let selected_join_player2 = selected_join_player.clone();
+
+    let cmd = use_context::<Commander>().unwrap();
+
+    html! {
+        <>
+            <div class="select">
+                <select onchange={Callback::from(move |e: Event| {
+                    let p: Player = e.target_unchecked_into::<HtmlSelectElement>().value().parse().unwrap();
+                    selected_join_player2.set(p);
+                })}>
+                    {for avail_players.map(|p| html! { <option value={p.to_string()} selected={p == *selected_join_player}>{p.to_string()}</option> })}
+                </select>
+            </div>
+            <button class="button" onclick={Callback::once(move |_| cmd.cmd(GameCommand::JoinGame(*selected_join_player)))}>{"Join"}</button>
+        </>
     }
 }
