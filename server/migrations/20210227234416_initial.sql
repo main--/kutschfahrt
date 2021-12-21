@@ -4,7 +4,8 @@ CREATE TABLE game_players (
     steamid bigint NOT NULL,
     player_character text NOT NULL,
 
-    PRIMARY KEY(gameid, steamid)
+    PRIMARY KEY(gameid, steamid),
+    UNIQUE(gameid, player_character)
 );
 
 CREATE TABLE game_state (

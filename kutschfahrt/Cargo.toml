@@ -12,4 +12,3 @@ indexmap = { version = "=1.6.2", features = ["serde-1"] }
 rand = "0.8.4"
 thiserror = "1.0.30"
 web_protocol = { path = "../web_protocol" }
-

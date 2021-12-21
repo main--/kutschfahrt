@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 
+use std::cell::RefCell;
 use std::collections::{HashSet, HashMap};
 use std::iter;
+use std::ops::{Deref, DerefMut};
 
 use indexmap::IndexMap;
 use serde::{Serialize, Deserialize};
@@ -12,9 +14,14 @@ use web_protocol::*;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GameState {
-    players: IndexMap<Player, PlayerState>,
+    p: GameStatePlayers,
     item_stack: Vec<Item>,
     job_stack: Vec<Job>,
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GameStatePlayers {
+    #[serde(with = "indexmap::serde_seq")]
+    players: IndexMap<Player, RefCell<PlayerState>>,
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct State {
@@ -48,11 +55,20 @@ impl From<JobUseError> for CommandError {
     }
 }
 
-impl GameState {
+impl GameStatePlayers {
     fn next_player(&self, p: Player) -> Player {
         let index = self.players.get_index_of(&p).expect("Invalid player");
         let next_index = (index + 1) % self.players.len();
         *self.players.get_index(next_index).unwrap().0
+    }
+    fn player<'a>(&'a self, p: Player) -> impl Deref<Target=PlayerState> + 'a {
+        self.players.get(&p).unwrap().borrow()
+    }
+    fn player_mut<'a>(&'a self, p: Player) -> impl DerefMut<Target=PlayerState> + 'a {
+        self.players.get(&p).unwrap().borrow_mut()
+    }
+    fn player_pair_mut<'a>(&'a self, a: Player, b: Player) -> (impl DerefMut<Target=PlayerState> + 'a, impl DerefMut<Target=PlayerState> + 'a) {
+        (self.players.get(&a).unwrap().borrow_mut(), self.players.get(&b).unwrap().borrow_mut())
     }
     fn attack_supporters<'a>(&'a self, attacker: Player, defender: Player) -> impl Iterator<Item=Player> + 'a {
         let keys = self.players.keys();
@@ -74,10 +90,10 @@ impl State {
 
                 match c {
                     Command::Pass => {
-                        TurnState::WaitingForQuickblink(s.next_player(p))
+                        TurnState::WaitingForQuickblink(s.p.next_player(p))
                     }
                     Command::AnnounceVictory { mut teammates } => {
-                        let faction = s.players.get(&actor).unwrap().faction;
+                        let faction = s.p.player(actor).faction;
                         let required_items = match faction {
                             Faction::Order => [Item::Goblet, Item::BagGoblet],
                             Faction::Brotherhood => [Item::Key, Item::BagKey],
@@ -93,7 +109,7 @@ impl State {
                         let mut victory = true;
                         let mut total_victory_items = 0;
                         for t in teammates {
-                            let ts = s.players.get(&t).unwrap();
+                            let ts = s.p.player(t);
                             let victory_items = ts.items.iter().copied().filter(|i| required_items.contains(i)).count();
                             if victory_items == 0 || ts.faction != faction {
                                 victory = false;
@@ -114,10 +130,13 @@ impl State {
                         }
                     }
                     Command::OfferTrade { target, item } => {
-                        unimplemented!();
+                        if s.p.player(actor).items.iter().all(|&i| i != item) {
+                            return Err(CommandError::InvalidItemError(item));
+                        }
+                        TurnState::TradePending { offerer: actor, target, item }
                     }
                     Command::InitiateAttack { player } => {
-                        if !s.players.contains_key(&player) || actor == player {
+                        if !s.p.players.contains_key(&player) || actor == player {
                             return Err(CommandError::InvalidTargetPlayer);
                         }
                         TurnState::Attacking {
@@ -137,7 +156,7 @@ impl State {
                                 return Err(CommandError::YouHaveAlreadyPassed);
                             }
 
-                            let defp = s.players.get_mut(&actor).unwrap();
+                            let mut defp = s.p.player_mut(actor);
                             defp.use_job(Job::Priest)?;
 
                             // TODO: resolve priest usage (needs new state I think)
@@ -145,7 +164,7 @@ impl State {
                         },
                         Command::UsePriest { priest: false } => {
                             passed.insert(actor);
-                            let state = if passed.len() == s.players.len() {
+                            let state = if passed.len() == s.p.players.len() {
                                 AttackState::DeclaringSupport(HashMap::new())
                             } else {
                                 AttackState::WaitingForPriest { passed }
@@ -156,14 +175,14 @@ impl State {
                     }
                 }
                 AttackState::DeclaringSupport(mut votes) => {
-                    let next_voter = s.attack_supporters(attacker, defender).nth(votes.len()).unwrap();
+                    let next_voter = s.p.attack_supporters(attacker, defender).nth(votes.len()).unwrap();
                     if actor != next_voter {
                         return Err(CommandError::NotYourTurn);
                     }
                     match c {
                         Command::DeclareSupport { support } => {
                             votes.insert(actor, support);
-                            if votes.len() == s.players.len() - 2 {
+                            if votes.len() == s.p.players.len() - 2 {
                                 TurnState::Attacking { attacker, defender, state: AttackState::WaitingForHypnotizer(votes) }
                             } else {
                                 TurnState::Attacking { attacker, defender, state: AttackState::DeclaringSupport(votes) }
@@ -206,9 +225,9 @@ impl State {
                                 if score == 0 {
                                     if let Some(drawn_item) = s.item_stack.pop() {
                                         // TODO: handle item limit
-                                        s.players.get_mut(&attacker).unwrap().items.push(drawn_item)
+                                        s.p.player_mut(attacker).items.push(drawn_item)
                                     }
-                                    TurnState::WaitingForQuickblink(s.next_player(attacker))
+                                    TurnState::WaitingForQuickblink(s.p.next_player(attacker))
                                 } else {
                                     let winner = if score > 0 {
                                         AttackWinner::Attacker
@@ -233,8 +252,8 @@ impl State {
 
                             // Check if using this buff is vaild for the player
                             match buff {
-                                BuffSource::Item(x) if s.players.get(&actor).unwrap().items.contains(&x) => (),
-                                BuffSource::Job(x) => s.players.get_mut(&actor).unwrap().use_job(x)?,
+                                BuffSource::Item(x) if s.p.player(actor).items.contains(&x) => (),
+                                BuffSource::Job(x) => s.p.player_mut(actor).use_job(x)?,
                                 BuffSource::Item(x) => return Err(CommandError::InvalidItemError(x))
                             }
 
@@ -242,7 +261,7 @@ impl State {
                             match buff {
                                 // triggers that end the fight:
                                 BuffSource::Job(Job::Doctor) => {
-                                    TurnState::WaitingForQuickblink(s.next_player(attacker))
+                                    TurnState::WaitingForQuickblink(s.p.next_player(attacker))
                                 }
                                 BuffSource::Job(Job::PoisonMixer) => {
                                     let winner = match target {
@@ -301,42 +320,70 @@ impl State {
                     match c {
                         Command::DoneLookingAtThings if !steal_items => (),
                         Command::StealItem { item, give_back } if steal_items => {
-                            // borrowing is complicated sometimes :(
-                            let attacker_del_idx;
-                            let defender_del_idx;
-                            {
-                                let attacker_items = &s.players.get(&attacker).unwrap().items;
-                                let defender_items = &s.players.get(&defender).unwrap().items;
-                                if give_back.is_some() != (defender_items.len() == 1) {
-                                    // give back an item exactly when defender has exactly 1 item
-                                    return Err(CommandError::InvalidStealCommand)
-                                }
-                                // TODO: implement inventory limit and item donation
-                                defender_del_idx = defender_items.iter().position(|x| *x == item).ok_or(CommandError::InvalidStealCommand)?;
-                                attacker_del_idx = match give_back {
-                                    None => None,
-                                    Some(i) => Some(attacker_items.iter().position(|x| *x == i).ok_or(CommandError::InvalidStealCommand)?),
-                                };
+                            // TODO: implement inventory limit and item donation
+
+                            let (mut attacker_state, mut defender_state) = s.p.player_pair_mut(attacker, defender);
+                            if give_back.is_some() != (defender_state.items.len() == 1) {
+                                // give back an item exactly when defender has exactly 1 item
+                                return Err(CommandError::InvalidStealCommand);
                             }
-                            {
-                                let a = &mut s.players.get_mut(&attacker).unwrap().items;
-                                a.push(item);
-                                if let Some(i) = attacker_del_idx {
-                                    a.remove(i);
-                                }
+                            let defender_del_idx = defender_state.items.iter().position(|x| *x == item).ok_or(CommandError::InvalidStealCommand)?;
+                            let attacker_del_idx = match give_back {
+                                None => None,
+                                Some(i) => Some(attacker_state.items.iter().position(|x| *x == i).ok_or(CommandError::InvalidStealCommand)?),
+                            };
+
+                            // only now that everything is verified and valid can we actually modify the game state
+                            attacker_state.items.push(item);
+                            if let Some(i) = attacker_del_idx {
+                                attacker_state.items.remove(i);
                             }
-                            {
-                                let d = &mut s.players.get_mut(&defender).unwrap().items;
-                                d.remove(defender_del_idx);
-                                if let Some(i) = give_back {
-                                    d.push(i);
-                                }
+
+                            defender_state.items.remove(defender_del_idx);
+                            if let Some(i) = give_back {
+                                attacker_state.items.push(i);
                             }
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
-                    TurnState::WaitingForQuickblink(s.next_player(attacker))
+                    TurnState::WaitingForQuickblink(s.p.next_player(attacker))
                 }
+            }
+            TurnState::TradePending { offerer, target, item } => {
+                // TODO: trade triggers not yet implemented
+                let mut newstate = None;
+                match c {
+                    Command::AcceptTrade { item: item2 } => {
+                        let items = [item, item2];
+                        if !s.item_stack.is_empty() && items.contains(&Item::BagGoblet) && items.contains(&Item::BagKey) {
+                            // TODO: is item stack even relevant here?
+                            return Err(CommandError::InvalidItemError(item2)); // can't swap bag for bag
+                        }
+
+                        let (mut offerer_state, mut target_state) = s.p.player_pair_mut(offerer, target);
+
+                        let idx_offerer = offerer_state.items.iter().position(|&i| i == item)
+                            .expect("We should not have allowed them to offer an item they don't even have.");
+                        let idx_target = match target_state.items.iter().position(|&i| i == item2) {
+                            Some(i) => i,
+                            None => return Err(CommandError::InvalidItemError(item2)),
+                        };
+
+                        // swap the items
+                        std::mem::swap(&mut offerer_state.items[idx_offerer], &mut target_state.items[idx_target]);
+                        // TODO: does this represent the game rules accurately?
+
+                        // no triggers if broken mirror was swapped
+                        if ![item, item2].contains(&Item::BrokenMirror) {
+                            // triggers for offered item
+                            newstate = try_resolve_trade_trigger(item, &mut s.item_stack, &mut offerer_state, &mut target_state).map(|trigger| TurnState::ResolvingTradeTrigger { offerer, target, next_item: Some(item2), trigger })
+                                .or_else(|| try_resolve_trade_trigger(item2, &mut s.item_stack, &mut target_state, &mut offerer_state).map(|trigger| TurnState::ResolvingTradeTrigger { offerer, target, next_item: None, trigger }));
+                        }
+                    }
+                    Command::RejectTrade => (),
+                    _ => return Err(CommandError::InvalidCommandInThisContext),
+                }
+                newstate.unwrap_or(TurnState::WaitingForQuickblink(s.p.next_player(offerer)))
             }
             _ => unimplemented!(),
         };
@@ -402,8 +449,10 @@ impl State {
             game: GameState {
                 item_stack: other_items,
                 job_stack: job_stack.iter().copied().collect(),
-                players: players.iter().zip(actual_start_items).zip(player_jobs).zip(factions)
-                    .map(|(((&player, item), &mut job), &mut faction)| (player, PlayerState { faction, job, job_is_visible: false, items: vec![item] })).collect(),
+                p: GameStatePlayers {
+                    players: players.iter().zip(actual_start_items).zip(player_jobs).zip(factions)
+                    .map(|(((&player, item), &mut job), &mut faction)| (player, RefCell::new(PlayerState { faction, job, job_is_visible: false, items: vec![item] }))).collect()
+                }
             },
             turn: TurnState::WaitingForQuickblink(players[0]),
         }
@@ -439,7 +488,7 @@ impl State {
                             AttackWinner::Attacker => defender,
                             AttackWinner::Defender => attacker,
                         };
-                        let victim = self.game.players.get(&victim).unwrap();
+                        let victim = self.game.p.player(victim);
                         if steal_items {
                             PerspectiveAttackState::FinishResolvingItems { target_items: victim.items.clone() }
                         } else {
@@ -453,16 +502,46 @@ impl State {
             }
         };
         Perspective {
-            you: self.game.players[&p].clone(),
-            your_player_index: self.game.players.get_index_of(&p).unwrap(),
-            players: self.game.players.iter().map(|(&k, v)| PerspectivePlayer {
-                player: k,
-                job: if v.job_is_visible { Some(v.job) } else { None },
-                item_count: v.items.len(),
+            you: self.game.p.player(p).clone(),
+            your_player_index: self.game.p.players.get_index_of(&p).unwrap(),
+            players: self.game.p.players.iter().map(|(&k, v)| {
+                let v = v.borrow();
+                PerspectivePlayer {
+                    player: k,
+                    job: if v.job_is_visible { Some(v.job) } else { None },
+                    item_count: v.items.len(),
+                }
             }).collect(),
             item_stack: self.game.item_stack.len(),
             turn,
         }
+    }
+}
+
+fn try_resolve_trade_trigger(
+    item: Item,
+    item_stack: &mut Vec<Item>,
+    offerer_state: &mut PlayerState,
+    target_state: &mut impl DerefMut<Target = PlayerState>
+) -> Option<TradeTriggerState> {
+    match item {
+        Item::BagKey | Item::BagGoblet => {
+            if let Some(i) = item_stack.pop() {
+                offerer_state.items.push(i);
+            }
+            None
+        }
+        Item::Priviledge => Some(TradeTriggerState::Priviledge),
+        Item::Monocle => Some(TradeTriggerState::Monocle),
+        Item::Sextant => Some(TradeTriggerState::Sextant { item_selections: HashMap::new() }),
+        Item::Coat => Some(TradeTriggerState::Coat),
+        Item::Tome => {
+            std::mem::swap(&mut offerer_state.job, &mut target_state.job);
+            offerer_state.job_is_visible = false;
+            target_state.job_is_visible = false;
+            None
+        }
+        _ => None,
     }
 }
 
