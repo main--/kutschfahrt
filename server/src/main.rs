@@ -5,7 +5,7 @@ use rocket::serde::json::Json;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 
 use kutschfahrt::State as KutschfahrtState;
-use web_protocol::{Player, GameCommand, MyState, GameInfo};
+use web_protocol::{GameCommand, MyState, GameInfo};
 
 mod login;
 use login::LoggedIn;

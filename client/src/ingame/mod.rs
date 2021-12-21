@@ -113,6 +113,7 @@ impl Commander {
 mod pregame;
 mod turnstart;
 mod trading;
+mod trade_trigger;
 
 
 #[derive(Properties, PartialEq)]
@@ -130,9 +131,9 @@ fn game_ui(props: &GameUiProps) -> Html {
                 PerspectiveTurnState::TurnStart { player } => html! { {format!("Waiting for {} ...", player)} },
                 PerspectiveTurnState::GameOver { winner } => html! { <div class="victory-text">{format!("The {:?} is victorious!", winner)}</div> },
                 &PerspectiveTurnState::TradePending { offerer, target, item } if target == me.player => html! { <trading::TradeOffer you={p.you.clone()} {offerer} item={item.unwrap()} stack_empty={p.item_stack == 0} /> },
-                PerspectiveTurnState::TradePending { offerer, target, .. } => html! { <div class="trade-text">{format!("{} is offering an item to {} ...", offerer, target)}</div> },
-                PerspectiveTurnState::ResolvingTradeTrigger { offerer, target, trigger } => todo!(),
-                PerspectiveTurnState::Attacking { attacker, defender, state } => html! { {format!("{} is attacking {}", attacker, defender)} },
+                PerspectiveTurnState::TradePending { offerer, target, .. } => html! { <p class="trade-text">{format!("{} is offering an item to {} ...", offerer, target)}</p> },
+                &PerspectiveTurnState::ResolvingTradeTrigger { offerer, target, ref trigger, is_first_item } => html! { <trade_trigger::TradeTrigger perspective={p.clone()} {is_first_item} {offerer} {target} trigger={trigger.clone()} /> },
+                PerspectiveTurnState::Attacking { attacker, defender, state } => html! { <p class="attack-text">{format!("{} is attacking {}", attacker, defender)}</p> },
             };
             html! { <div class="hud">{body}</div> }
         }

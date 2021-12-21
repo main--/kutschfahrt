@@ -464,13 +464,14 @@ impl State {
             &TurnState::GameOver { winner } => GameOver { winner },
             &TurnState::TradePending { offerer, target, item } if target == p => TradePending { offerer, target, item: Some(item) },
             &TurnState::TradePending { offerer, target, .. } => TradePending { offerer, target, item: None },
-            &TurnState::ResolvingTradeTrigger { offerer, target, ref trigger, .. } => {
+            &TurnState::ResolvingTradeTrigger { offerer, target, ref trigger, next_item } => {
                 let trigger = match trigger {
-                    TradeTriggerState::Sextant { .. } =>
-                        TradeTriggerState::Sextant { item_selections: HashMap::new() },
+                    &TradeTriggerState::Sextant { ref item_selections, is_forward } =>
+                        // only show the item you selected (so you know that you selected it)
+                        TradeTriggerState::Sextant { item_selections: item_selections.iter().filter(|&(&k, _)| k == p).map(|(&k, &v)| (k, v)).collect(), is_forward },
                     t => t.clone(),
                 };
-                ResolvingTradeTrigger { offerer, target, trigger }
+                ResolvingTradeTrigger { offerer, target, trigger, is_first_item: next_item.is_some() }
             }
             &TurnState::Attacking { attacker, defender, ref state } => {
                 let myself = if p == attacker {
@@ -533,7 +534,7 @@ fn try_resolve_trade_trigger(
         }
         Item::Priviledge => Some(TradeTriggerState::Priviledge),
         Item::Monocle => Some(TradeTriggerState::Monocle),
-        Item::Sextant => Some(TradeTriggerState::Sextant { item_selections: HashMap::new() }),
+        Item::Sextant => Some(TradeTriggerState::Sextant { item_selections: HashMap::new(), is_forward: None }),
         Item::Coat => Some(TradeTriggerState::Coat),
         Item::Tome => {
             std::mem::swap(&mut offerer_state.job, &mut target_state.job);
