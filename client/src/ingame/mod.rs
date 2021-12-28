@@ -72,9 +72,9 @@ impl Component for Ingame {
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
             <>
-                <pre>
-                    {serde_json::to_string_pretty(&self.game_info).unwrap()}
-                </pre>
+                <ContextProvider<Commander> context={Commander { game: self.game.clone() }}>
+                    {self.game_info.clone().map(|g| html! { <GameUi gamestate={g} /> }).into_iter().collect::<Html>()}
+                </ContextProvider<Commander>>
                 <input
                     value={self.command.clone()}
                     oninput={ctx.link().callback(|e: InputEvent| { let input: HtmlInputElement = e.target_unchecked_into(); Msg::TypeCommand(input.value()) })}
@@ -86,9 +86,9 @@ impl Component for Ingame {
                         }
                     })}
                 />
-                <ContextProvider<Commander> context={Commander { game: self.game.clone() }}>
-                    {self.game_info.clone().map(|g| html! { <GameUi gamestate={g} /> }).into_iter().collect::<Html>()}
-                </ContextProvider<Commander>>
+                <pre>
+                    {serde_json::to_string_pretty(&self.game_info).unwrap()}
+                </pre>
             </>
         }
     }
@@ -109,6 +109,8 @@ impl Commander {
     }
 }
 
+mod command_btn;
+pub use command_btn::CommandButton;
 
 mod pregame;
 mod turnstart;

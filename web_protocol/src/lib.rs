@@ -216,7 +216,7 @@ pub enum TradeTriggerState {
     Sextant { item_selections: HashMap<Player, Item>, is_forward: Option<bool> },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum Command {
     Pass,
@@ -227,6 +227,7 @@ pub enum Command {
     AcceptTrade { item: Item },
     PickNewJob { job: Job },
     SelectSextantItem { item: Item },
+    SetSextantDirection { forward: bool },
 
     InitiateAttack { player: Player },
     UsePriest { priest: bool },

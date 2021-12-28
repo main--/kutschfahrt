@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
-use web_protocol::{Perspective, Player, Item};
+use web_protocol::{Perspective, Player, Item, Command};
 use yew::prelude::*;
+
+use crate::ingame::{Commander, CommandButton};
 
 #[derive(Properties, PartialEq)]
 pub struct ResolveSextantProps {
@@ -25,8 +27,8 @@ pub fn resolve_sextant(props: &ResolveSextantProps) -> Html {
     match is_forward {
         None if responsible_player == me.player => html! {
             <div class="sextant-lr">
-                <button>{"Left"}</button>
-                <button>{"Right"}</button>
+                <CommandButton command={Some(Command::SetSextantDirection { forward: true })} text={"Left"} />
+                <CommandButton command={Some(Command::SetSextantDirection { forward: false })} text={"Right"} />
             </div>
         },
         None => html! { <p class="sextant-text">{format!("Waiting for {} to determine the direction.", responsible_player)}</p> },
@@ -65,7 +67,7 @@ pub fn resolve_sextant(props: &ResolveSextantProps) -> Html {
                                 })}>{format!("{:?}", i)}</div> }
                             })}
                         </div>
-                        <button>{"Submit"}</button>
+                        <CommandButton command={item.map(|item| Command::SelectSextantItem { item })} text={"Submit"} />
                     </>
                 },
             }

@@ -350,7 +350,6 @@ impl State {
                 }
             }
             TurnState::TradePending { offerer, target, item } => {
-                // TODO: trade triggers not yet implemented
                 let mut newstate = None;
                 match c {
                     Command::AcceptTrade { item: item2 } => {
@@ -384,6 +383,69 @@ impl State {
                     _ => return Err(CommandError::InvalidCommandInThisContext),
                 }
                 newstate.unwrap_or(TurnState::WaitingForQuickblink(s.p.next_player(offerer)))
+            }
+            TurnState::ResolvingTradeTrigger { offerer, target, next_item, trigger } => {
+                let responsible_player = if next_item.is_some() { offerer } else { target };
+                match trigger {
+                    TradeTriggerState::Priviledge | TradeTriggerState::Monocle => {
+                        if actor != responsible_player { return Err(CommandError::NotYourTurn); }
+
+                        match c {
+                            Command::DoneLookingAtThings => None,
+                            _ => return Err(CommandError::InvalidCommandInThisContext),
+                        }
+                    }
+                    TradeTriggerState::Coat => todo!(),
+                    TradeTriggerState::Sextant { is_forward: None, .. } if actor != responsible_player => return Err(CommandError::NotYourTurn),
+                    TradeTriggerState::Sextant { item_selections, is_forward: None } => {
+                        match c {
+                            Command::SetSextantDirection { forward } => Some(TurnState::ResolvingTradeTrigger { offerer, target, next_item, trigger: TradeTriggerState::Sextant { item_selections, is_forward: Some(forward) } }),
+                            _ => return Err(CommandError::InvalidCommandInThisContext),
+                        }
+                    }
+                    TradeTriggerState::Sextant { mut item_selections, is_forward: Some(forward) } => {
+                        match c {
+                            Command::SelectSextantItem { item } if !item_selections.contains_key(&actor) => {
+                                if !s.p.player(actor).items.contains(&item) {
+                                    return Err(CommandError::InvalidItemError(item));
+                                }
+                                item_selections.insert(actor, item);
+
+                                if item_selections.len() == s.p.players.len() {
+                                    // everybody has made their choice!
+                                    fn eval_sextant<'a>(sels: &HashMap<Player, Item>, i: impl Iterator<Item=(&'a Player, &'a RefCell<PlayerState>)>) {
+                                        let mut i = i.peekable();
+                                        while let Some(((&px, sx), &(_, sy))) = i.next().and_then(|x| i.peek().map(|y| (x, y))) {
+                                            // move px's selection from px's inventory to py's inventory
+                                            let item = sels.get(&px).unwrap();
+                                            let mut xstate = sx.borrow_mut();
+                                            let xindex = xstate.items.iter().position(|i| i == item).unwrap();
+                                            xstate.items.remove(xindex);
+
+                                            sy.borrow_mut().items.push(*item);
+                                        }
+                                    }
+                                    let players_iter = s.p.players.iter();
+                                    let looped_iter = players_iter.clone().chain(players_iter.take(1));
+                                    if forward {
+                                        eval_sextant(&item_selections, looped_iter);
+                                    } else {
+                                        eval_sextant(&item_selections, looped_iter.rev());
+                                    }
+
+                                    next_item.and_then(|ni| {
+                                        let (mut offerer_state, mut target_state) = s.p.player_pair_mut(offerer, target);
+                                        try_resolve_trade_trigger(ni, &mut s.item_stack, &mut target_state, &mut offerer_state)
+                                    })
+                                        .map(|trigger| TurnState::ResolvingTradeTrigger { offerer, target, next_item: None, trigger })
+                                } else {
+                                    Some(TurnState::ResolvingTradeTrigger { offerer, target, next_item, trigger: TradeTriggerState::Sextant { item_selections, is_forward: Some(forward) } })
+                                }
+                            }
+                            _ => return Err(CommandError::InvalidCommandInThisContext),
+                        }
+                    }
+                }.unwrap_or(TurnState::WaitingForQuickblink(s.p.next_player(offerer)))
             }
             _ => unimplemented!(),
         };

@@ -16,7 +16,6 @@ use web_protocol::MyState;
 mod ingame;
 
 
-
 #[derive(Clone, Debug, PartialEq, Routable)]
 pub enum AppRoute {
     #[at("/game/:id")]
