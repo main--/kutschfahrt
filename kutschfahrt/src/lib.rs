@@ -150,6 +150,9 @@ impl State {
                         }
                     }
                     Command::OfferTrade { target, item } => {
+                        if actor == target {
+                            return Err(CommandError::InvalidTargetPlayer);
+                        }
                         if s.p.player(actor).items.iter().all(|&i| i != item) {
                             return Err(CommandError::InvalidItemError(item));
                         }
@@ -241,11 +244,18 @@ impl State {
                                     .chain(votes.values().map(|v| v.vote_value())).sum();
 
                                 if score == 0 {
+                                    let next_player = s.p.next_player(attacker);
                                     if let Some(drawn_item) = s.item_stack.pop() {
-                                        // TODO: handle item limit
-                                        s.p.player_mut(attacker).items.push(drawn_item)
+                                        let mut player_state = s.p.player_mut(attacker);
+                                        player_state.items.push(drawn_item);
+                                        if player_state.items.len() > inventory_limit(s.p.players.len()) {
+                                            TurnState::DonatingItem { donor: attacker, followup: ItemDonationFollowup::NextPlayer(next_player) }
+                                        } else {
+                                            TurnState::WaitingForQuickblink(next_player)
+                                        }
+                                    } else {
+                                        TurnState::WaitingForQuickblink(next_player)
                                     }
-                                    TurnState::WaitingForQuickblink(s.p.next_player(attacker))
                                 } else {
                                     let winner = if score > 0 {
                                         AttackWinner::Attacker
@@ -375,7 +385,7 @@ impl State {
                             }
 
                             if attacker_state.items.len() > inventory_limit(s.p.players.len()) {
-                                TurnState::DonatingItem { donor: attacker, next_player: next_player }
+                                TurnState::DonatingItem { donor: attacker, followup: ItemDonationFollowup::NextPlayer(next_player) }
                             } else {
                                 TurnState::WaitingForQuickblink(next_player)
                             }
@@ -411,8 +421,17 @@ impl State {
                         // no triggers if broken mirror was swapped
                         if ![item, item2].contains(&Item::BrokenMirror) {
                             // triggers for offered item
-                            newstate = try_resolve_trade_trigger(item, &mut s.item_stack, &mut offerer_state, &mut target_state).map(|trigger| TurnState::ResolvingTradeTrigger { offerer, target, next_item: Some(item2), trigger })
-                                .or_else(|| try_resolve_trade_trigger(item2, &mut s.item_stack, &mut target_state, &mut offerer_state).map(|trigger| TurnState::ResolvingTradeTrigger { offerer, target, next_item: None, trigger }));
+                            let np = s.p.players.len();
+                            newstate = try_resolve_trade_trigger(item, &mut s.item_stack, &mut offerer_state, &mut target_state, np)
+                                    .map(|trigger| match trigger {
+                                        Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer, target, next_item: Some(item2), trigger },
+                                        Err(NeedDonation) => TurnState::DonatingItem { donor: offerer, followup: ItemDonationFollowup::TradeTriggers { offerer, target, item: item2 } },
+                                    })
+                                .or_else(|| try_resolve_trade_trigger(item2, &mut s.item_stack, &mut target_state, &mut offerer_state, np)
+                                    .map(|trigger| match trigger {
+                                        Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer, target, next_item: None, trigger },
+                                        Err(NeedDonation) => TurnState::DonatingItem { donor: target, followup: ItemDonationFollowup::NextPlayer(s.p.next_player(offerer)) },
+                                    }));
                         }
                     }
                     Command::RejectTrade => (),
@@ -496,23 +515,43 @@ impl State {
                 }.or_else(|| {
                     next_item.and_then(|ni| {
                         let (mut offerer_state, mut target_state) = s.p.player_pair_mut(offerer, target);
-                        try_resolve_trade_trigger(ni, &mut s.item_stack, &mut target_state, &mut offerer_state)
+                        try_resolve_trade_trigger(ni, &mut s.item_stack, &mut target_state, &mut offerer_state, s.p.players.len())
                     })
-                        .map(|trigger| TurnState::ResolvingTradeTrigger { offerer, target, next_item: None, trigger })
+                        .map(|trigger| match trigger {
+                            Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer, target, next_item: None, trigger },
+                            Err(NeedDonation) => TurnState::DonatingItem { donor: target, followup: ItemDonationFollowup::NextPlayer(s.p.next_player(offerer)) },
+                        })
                 }).unwrap_or(TurnState::WaitingForQuickblink(s.p.next_player(offerer)))
             }
-            TurnState::DonatingItem { donor, next_player } => {
+            TurnState::DonatingItem { donor, followup } => {
                 if actor != donor {
                     return Err(CommandError::NotYourTurn);
                 }
                 match c {
                     Command::DonateItem { target, item } => {
-                        let mut donor_state = s.p.player_mut(donor);
-                        let mut target_state = s.p.player_mut(target);
-                        let index = donor_state.items.iter().position(|&i| i == item).ok_or(CommandError::InvalidItemError(item))?;
-                        donor_state.items.remove(index);
-                        target_state.items.push(item);
-                        TurnState::WaitingForQuickblink(next_player)
+                        {
+                            let mut donor_state = s.p.player_mut(donor);
+                            let mut target_state = s.p.player_mut(target);
+                            let index = donor_state.items.iter().position(|&i| i == item).ok_or(CommandError::InvalidItemError(item))?;
+                            donor_state.items.remove(index);
+                            target_state.items.push(item);
+                        }
+
+                        match followup {
+                            ItemDonationFollowup::NextPlayer(p) => TurnState::WaitingForQuickblink(p),
+                            ItemDonationFollowup::TradeTriggers { offerer, target, item } => {
+                                // at this point we expect that offerer and target are still original (and hence we are dealing with the item that the target is passing to the offerer)
+                                dbg!(offerer, target, item);
+                                let mut ostate = s.p.player_mut(offerer);
+                                let mut tstate = s.p.player_mut(target);
+                                try_resolve_trade_trigger(item, &mut s.item_stack, &mut tstate, &mut ostate, s.p.players.len())
+                                    .map(|trigger| match trigger {
+                                        Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer, target, next_item: None, trigger },
+                                        Err(NeedDonation) => TurnState::DonatingItem { donor: target, followup: ItemDonationFollowup::NextPlayer(s.p.next_player(offerer)) },
+                                    })
+                                    .unwrap_or(TurnState::WaitingForQuickblink(s.p.next_player(offerer)))
+                            }
+                        }
                     }
                     _ => return Err(CommandError::InvalidCommandInThisContext),
                 }
@@ -597,15 +636,16 @@ impl State {
             &TurnState::TradePending { offerer, target, item } if target == p => TradePending { offerer, target, item: Some(item) },
             &TurnState::TradePending { offerer, target, .. } => TradePending { offerer, target, item: None },
             &TurnState::ResolvingTradeTrigger { offerer, target, ref trigger, next_item } => {
+                let (relevant, other) = if next_item.is_some() { (offerer, target) } else { (target, offerer) };
                 let trigger = match trigger {
-                    // only the offerer is allowed to see the respective info
-                    TradeTriggerState::Priviledge if offerer == p =>
-                        PerspectiveTradeTriggerState::Priviledge { items: Some(self.game.p.player(target).items.clone()) },
+                    // only the relevant player is allowed to see the respective info
+                    TradeTriggerState::Priviledge if relevant == p =>
+                        PerspectiveTradeTriggerState::Priviledge { items: Some(self.game.p.player(other).items.clone()) },
                     TradeTriggerState::Priviledge => PerspectiveTradeTriggerState::Priviledge { items: None },
-                    TradeTriggerState::Monocle if offerer == p =>
-                        PerspectiveTradeTriggerState::Monocle { faction: Some(self.game.p.player(target).faction) },
+                    TradeTriggerState::Monocle if relevant == p =>
+                        PerspectiveTradeTriggerState::Monocle { faction: Some(self.game.p.player(other).faction) },
                     TradeTriggerState::Monocle => PerspectiveTradeTriggerState::Monocle { faction: None },
-                    TradeTriggerState::Coat if offerer == p =>
+                    TradeTriggerState::Coat if relevant == p =>
                         PerspectiveTradeTriggerState::Coat { available_jobs: Some(self.game.job_stack.clone()) },
                     TradeTriggerState::Coat => PerspectiveTradeTriggerState::Coat { available_jobs: None },
                     &TradeTriggerState::Sextant { ref item_selections, is_forward } =>
@@ -642,7 +682,7 @@ impl State {
 
                 Attacking { attacker, defender, state }
             }
-            &TurnState::DonatingItem { donor, next_player } => PerspectiveTurnState::DonatingItem { donor, next_player },
+            &TurnState::DonatingItem { donor, .. } => PerspectiveTurnState::DonatingItem { donor },
         };
         Perspective {
             you: self.game.p.player(p).clone(),
@@ -661,23 +701,28 @@ impl State {
     }
 }
 
+struct NeedDonation;
 fn try_resolve_trade_trigger(
     item: Item,
     item_stack: &mut Vec<Item>,
     offerer_state: &mut PlayerState,
-    target_state: &mut impl DerefMut<Target = PlayerState>
-) -> Option<TradeTriggerState> {
+    target_state: &mut PlayerState,
+    num_players: usize
+) -> Option<Result<TradeTriggerState, NeedDonation>> {
     match item {
         Item::BagKey | Item::BagGoblet => {
             if let Some(i) = item_stack.pop() {
                 offerer_state.items.push(i);
+                if offerer_state.items.len() > inventory_limit(num_players) {
+                    return Some(Err(NeedDonation));
+                }
             }
             None
         }
-        Item::Priviledge => Some(TradeTriggerState::Priviledge),
-        Item::Monocle => Some(TradeTriggerState::Monocle),
-        Item::Sextant => Some(TradeTriggerState::Sextant { item_selections: HashMap::new(), is_forward: None }),
-        Item::Coat => Some(TradeTriggerState::Coat),
+        Item::Priviledge => Some(Ok(TradeTriggerState::Priviledge)),
+        Item::Monocle => Some(Ok(TradeTriggerState::Monocle)),
+        Item::Sextant => Some(Ok(TradeTriggerState::Sextant { item_selections: HashMap::new(), is_forward: None })),
+        Item::Coat => Some(Ok(TradeTriggerState::Coat)),
         Item::Tome => {
             std::mem::swap(&mut offerer_state.job, &mut target_state.job);
             offerer_state.job_is_visible = false;
@@ -784,6 +829,50 @@ mod tests {
         assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
         assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
         s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    }
+
+    #[test]
+    fn trade_monocle_backwards() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.push(Item::Monocle);
+        s.turn = TurnState::WaitingForQuickblink(Player::Marie);
+        s.apply_command(Player::Marie, Command::OfferTrade { target: Player::Sarah, item: Item::PoisonRing }).unwrap();
+        s.apply_command(Player::Sarah, Command::AcceptTrade { item: Item::Monocle }).unwrap();
+        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
+        assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
+        s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Zacharias));
+    }
+
+    #[test]
+    fn trade_monocle_priviledge() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.push(Item::Monocle);
+        s.game.p.player_mut(Player::Marie).items.push(Item::Priviledge);
+        s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::Monocle }).unwrap();
+        s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::Priviledge }).unwrap();
+        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
+        assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
+        s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
+        assert_eq!(s.perspective(Player::Marie).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Priviledge { items: Some(vec![Item::BagKey, Item::Priviledge]) } });
+        assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Priviledge { items: None } });
+        s.apply_command(Player::Marie, Command::DoneLookingAtThings).unwrap();
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    }
+
+    #[test]
+    fn trade_monocle_with_bag_causing_donation() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Marie).items.push(Item::Monocle);
+        s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::BagGoblet, Item::Key, Item::Key, Item::Key, Item::Goblet]);
+
+        s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::BagGoblet }).unwrap();
+        s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::Monocle }).unwrap();
+        s.apply_command(Player::Sarah, Command::DonateItem { target: Player::Zacharias, item: Item::Key }).unwrap();
+        assert_eq!(s.perspective(Player::Marie).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
+        assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
+        s.apply_command(Player::Marie, Command::DoneLookingAtThings).unwrap();
         assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
     }
 
