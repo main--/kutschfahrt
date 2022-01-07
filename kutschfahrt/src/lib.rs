@@ -29,7 +29,7 @@ pub struct State {
     pub turn: TurnState,
 }
 
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum CommandError {
     #[error("Not your turn")]
     NotYourTurn,
@@ -47,6 +47,12 @@ pub enum CommandError {
     JobError,
     #[error("This item {0:?} is not a valid choice")]
     InvalidItemError(Item),
+    #[error("The game is over")]
+    GameOver,
+    #[error("The job {0:?} does not exist in the job stack")]
+    InvalidJobError(Job),
+    #[error("You have the black pearl and may not announce victory")]
+    BlackPearl,
 }
 
 impl From<JobUseError> for CommandError {
@@ -83,6 +89,7 @@ impl State {
     pub fn apply_command(&mut self, actor: Player, c: Command) -> Result<(), CommandError> {
         let s = &mut self.game;
         self.turn = match self.turn.clone() {
+            TurnState::GameOver { .. } => return Err(CommandError::GameOver),
             TurnState::WaitingForQuickblink(p) => {
                 if actor != p {
                     return Err(CommandError::NotYourTurn);
@@ -93,10 +100,14 @@ impl State {
                         TurnState::WaitingForQuickblink(s.p.next_player(p))
                     }
                     Command::AnnounceVictory { mut teammates } => {
-                        let faction = s.p.player(actor).faction;
+                        let actor_player = s.p.player(actor);
+                        if actor_player.items.contains(&Item::BlackPearl) {
+                            return Err(CommandError::BlackPearl);
+                        }
+                        let faction = actor_player.faction;
                         let required_items = match faction {
-                            Faction::Order => [Item::Goblet, Item::BagGoblet],
-                            Faction::Brotherhood => [Item::Key, Item::BagKey],
+                            Faction::Order => [Item::Key, Item::BagKey],
+                            Faction::Brotherhood => [Item::Goblet, Item::BagGoblet],
                         };
 
                         let required_items = if s.item_stack.is_empty() {
@@ -198,6 +209,7 @@ impl State {
                     match c {
                         Command::Hypnotize { target } => {
                             if let Some(target) = target {
+                                s.p.player_mut(actor).use_job(Job::Hypnotist)?;
                                 votes.insert(target, AttackSupport::Abstain);
                             }
                             TurnState::Attacking { attacker, defender, state: AttackState::ItemsOrJobs { votes, passed: HashSet::new(), buffs: Vec::new() }}
@@ -209,15 +221,12 @@ impl State {
                     if passed.contains(&actor) {
                         return Err(CommandError::YouHaveAlreadyPassed);
                     }
-                    if votes.get(&actor) == Some(&AttackSupport::Abstain) {
-                        return Err(CommandError::YouAbstained);
-                    }
 
                     match c {
                         // TODO: We might wanna warn the player if he specifies a target for a buff that doesn't need a target
                         Command::ItemOrJob { buff: None, target: _ } => {
                             passed.insert(actor);
-                            let required_passes = votes.values().filter(|&n| *n != AttackSupport::Abstain).count() + 2;
+                            let required_passes = s.p.players.len();
                             if passed.len() == required_passes {
                                 let score: BuffScore = buffs.iter().map(|b| b.raw_score)
                                     .chain(votes.values().map(|v| v.vote_value())).sum();
@@ -241,6 +250,11 @@ impl State {
                             }
                         }
                         Command::ItemOrJob { buff: Some(buff), target } => {
+                            // TODO: e.g. doctor can be used even if abstaining so this is not entirely correct
+                            if votes.get(&actor) == Some(&AttackSupport::Abstain) {
+                                return Err(CommandError::YouAbstained);
+                            }
+
                             // Detemine actor's role in the struggle
                             let role = if actor == attacker {
                                 AttackRole::Attacker
@@ -352,6 +366,7 @@ impl State {
             TurnState::TradePending { offerer, target, item } => {
                 let mut newstate = None;
                 match c {
+                    _ if actor != target => return Err(CommandError::NotYourTurn),
                     Command::AcceptTrade { item: item2 } => {
                         let items = [item, item2];
                         if !s.item_stack.is_empty() && items.contains(&Item::BagGoblet) && items.contains(&Item::BagKey) {
@@ -395,7 +410,23 @@ impl State {
                             _ => return Err(CommandError::InvalidCommandInThisContext),
                         }
                     }
-                    TradeTriggerState::Coat => todo!(),
+                    TradeTriggerState::Coat => {
+                        if actor != responsible_player { return Err(CommandError::NotYourTurn); }
+
+                        match c {
+                            Command::PickNewJob { job } => {
+                                match s.job_stack.iter().position(|&j| j == job) {
+                                    Some(i) => {
+                                        let mut p = s.p.player_mut(actor);
+                                        std::mem::swap(&mut s.job_stack[i], &mut p.job);
+                                        None
+                                    }
+                                    None => return Err(CommandError::InvalidJobError(job)),
+                                }
+                            }
+                            _ => return Err(CommandError::InvalidCommandInThisContext),
+                        }
+                    }
                     TradeTriggerState::Sextant { is_forward: None, .. } if actor != responsible_player => return Err(CommandError::NotYourTurn),
                     TradeTriggerState::Sextant { item_selections, is_forward: None } => {
                         match c {
@@ -433,11 +464,7 @@ impl State {
                                         eval_sextant(&item_selections, looped_iter.rev());
                                     }
 
-                                    next_item.and_then(|ni| {
-                                        let (mut offerer_state, mut target_state) = s.p.player_pair_mut(offerer, target);
-                                        try_resolve_trade_trigger(ni, &mut s.item_stack, &mut target_state, &mut offerer_state)
-                                    })
-                                        .map(|trigger| TurnState::ResolvingTradeTrigger { offerer, target, next_item: None, trigger })
+                                    None
                                 } else {
                                     Some(TurnState::ResolvingTradeTrigger { offerer, target, next_item, trigger: TradeTriggerState::Sextant { item_selections, is_forward: Some(forward) } })
                                 }
@@ -445,15 +472,21 @@ impl State {
                             _ => return Err(CommandError::InvalidCommandInThisContext),
                         }
                     }
-                }.unwrap_or(TurnState::WaitingForQuickblink(s.p.next_player(offerer)))
+                }.or_else(|| {
+                    next_item.and_then(|ni| {
+                        let (mut offerer_state, mut target_state) = s.p.player_pair_mut(offerer, target);
+                        try_resolve_trade_trigger(ni, &mut s.item_stack, &mut target_state, &mut offerer_state)
+                    })
+                        .map(|trigger| TurnState::ResolvingTradeTrigger { offerer, target, next_item: None, trigger })
+                }).unwrap_or(TurnState::WaitingForQuickblink(s.p.next_player(offerer)))
             }
-            _ => unimplemented!(),
         };
         Ok(())
     }
 
     pub fn new(mut players: Vec<Player>, rng: &mut impl Rng) -> State {
-        assert!(players.len() >= 3); // TODO: dreier spiel in sinnvoll
+        //players.push(Player::Zacharias);
+        //assert!(players.len() >= 3); // TODO: dreier spiel in sinnvoll
         // Das ist jetzt nicht mehr falsch
         let mut start_items = [
             Item::Key,
@@ -528,10 +561,19 @@ impl State {
             &TurnState::TradePending { offerer, target, .. } => TradePending { offerer, target, item: None },
             &TurnState::ResolvingTradeTrigger { offerer, target, ref trigger, next_item } => {
                 let trigger = match trigger {
+                    // only the offerer is allowed to see the respective info
+                    TradeTriggerState::Priviledge if offerer == p =>
+                        PerspectiveTradeTriggerState::Priviledge { items: Some(self.game.p.player(target).items.clone()) },
+                    TradeTriggerState::Priviledge => PerspectiveTradeTriggerState::Priviledge { items: None },
+                    TradeTriggerState::Monocle if offerer == p =>
+                        PerspectiveTradeTriggerState::Monocle { faction: Some(self.game.p.player(target).faction) },
+                    TradeTriggerState::Monocle => PerspectiveTradeTriggerState::Monocle { faction: None },
+                    TradeTriggerState::Coat if offerer == p =>
+                        PerspectiveTradeTriggerState::Coat { available_jobs: Some(self.game.job_stack.clone()) },
+                    TradeTriggerState::Coat => PerspectiveTradeTriggerState::Coat { available_jobs: None },
                     &TradeTriggerState::Sextant { ref item_selections, is_forward } =>
                         // only show the item you selected (so you know that you selected it)
-                        TradeTriggerState::Sextant { item_selections: item_selections.iter().filter(|&(&k, _)| k == p).map(|(&k, &v)| (k, v)).collect(), is_forward },
-                    t => t.clone(),
+                        PerspectiveTradeTriggerState::Sextant { item_selections: item_selections.iter().filter(|&(&k, _)| k == p).map(|(&k, &v)| (k, v)).collect(), is_forward },
                 };
                 ResolvingTradeTrigger { offerer, target, trigger, is_first_item: next_item.is_some() }
             }
@@ -613,16 +655,267 @@ fn try_resolve_trade_trigger(
 
 #[cfg(test)]
 mod tests {
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
     fn teststate() -> State {
-        unimplemented!();
+        State {
+            game: GameState {
+                p: GameStatePlayers { players: [
+                    (Player::Sarah, RefCell::new(PlayerState { faction: Faction::Order, job: Job::Duelist, job_is_visible: false, items: vec![Item::BagKey] })),
+                    (Player::Gundla, RefCell::new(PlayerState { faction: Faction::Brotherhood, job: Job::Clairvoyant, job_is_visible: false, items: vec![Item::BagGoblet] })),
+                    (Player::Marie, RefCell::new(PlayerState { faction: Faction::Order, job: Job::Thug, job_is_visible: false, items: vec![Item::PoisonRing] })),
+                    (Player::Zacharias, RefCell::new(PlayerState { faction: Faction::Brotherhood, job: Job::Hypnotist, job_is_visible: false, items: vec![Item::Gloves] })),
+                ].into_iter().collect() },
+                item_stack: vec![Item::BlackPearl, Item::Dagger],
+                job_stack: vec![Job::Doctor],
+            },
+            turn: TurnState::WaitingForQuickblink(Player::Sarah),
+        }
     }
+
     #[test]
-    fn test_add() {
+    fn pass() {
         let mut s = teststate();
+        s.apply_command(Player::Sarah, Command::Pass).unwrap();
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
         s.apply_command(Player::Gundla, Command::Pass).unwrap();
-        s.apply_command(Player::Gundla, Command::Pass).unwrap();
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Marie));
+        s.apply_command(Player::Marie, Command::Pass).unwrap();
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Zacharias));
+        s.apply_command(Player::Zacharias, Command::Pass).unwrap();
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Sarah));
+        s.apply_command(Player::Sarah, Command::Pass).unwrap();
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    }
+
+    #[test]
+    fn wrong_player() {
+        let mut s = teststate();
+        assert_eq!(s.apply_command(Player::Gundla, Command::Pass), Err(CommandError::NotYourTurn));
+    }
+
+    #[test]
+    fn trade_bad_item() {
+        let mut s = teststate();
+        assert_eq!(s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Gundla, item: Item::Key }), Err(CommandError::InvalidItemError(Item::Key)));
+    }
+
+    #[test]
+    fn trade_bad_return_item() {
+        let mut s = teststate();
+        s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Gundla, item: Item::BagKey }).unwrap();
+        assert_eq!(s.apply_command(Player::Gundla, Command::AcceptTrade { item: Item::BagKey }), Err(CommandError::InvalidItemError(Item::BagKey)));
+    }
+
+    #[test]
+    fn trade_bag_invalid() {
+        let mut s = teststate();
+        s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Gundla, item: Item::BagKey }).unwrap();
+        assert_eq!(s.apply_command(Player::Gundla, Command::AcceptTrade { item: Item::BagGoblet }), Err(CommandError::InvalidItemError(Item::BagGoblet)));
+    }
+
+
+    #[test]
+    fn trade_bag_reject() {
+        let mut s = teststate();
+        s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Gundla, item: Item::BagKey }).unwrap();
+        s.apply_command(Player::Gundla, Command::RejectTrade).unwrap();
+    }
+
+
+    #[test]
+    fn trade_bag_valid() {
+        let mut s = teststate();
+        s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::BagKey }).unwrap();
+        s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+        assert!(s.game.p.player(Player::Sarah).items.contains(&Item::PoisonRing));
+        assert!(!s.game.p.player(Player::Sarah).items.contains(&Item::BagKey));
+        assert!(s.game.p.player(Player::Sarah).items.contains(&Item::Dagger)); // test that the effect triggered
+
+        assert!(s.game.p.player(Player::Marie).items.contains(&Item::BagKey));
+        assert!(!s.game.p.player(Player::Marie).items.contains(&Item::PoisonRing));
+    }
+
+    #[test]
+    fn trade_monocle() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.push(Item::Monocle);
+        s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::Monocle }).unwrap();
+        s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
+        assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
+        s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    }
+
+    #[test]
+    fn trade_priviledge() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.push(Item::Priviledge);
+        s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::Priviledge }).unwrap();
+        s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Priviledge { items: Some(vec![Item::Priviledge]) } });
+        assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Priviledge { items: None } });
+        s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    }
+
+    #[test]
+    fn trade_tome() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.push(Item::Tome);
+        s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::Tome }).unwrap();
+
+        assert_eq!(s.game.p.player(Player::Sarah).job, Job::Duelist);
+        assert_eq!(s.game.p.player(Player::Marie).job, Job::Thug);
+
+        s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+
+        assert_eq!(s.game.p.player(Player::Sarah).job, Job::Thug);
+        assert_eq!(s.game.p.player(Player::Marie).job, Job::Duelist);
+
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    }
+
+    #[test]
+    fn trade_sextant() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.push(Item::Sextant);
+        s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::Sextant }).unwrap();
+        s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::SetSextantDirection { forward: true }).unwrap();
+
+        s.apply_command(Player::Zacharias, Command::SelectSextantItem { item: Item::Gloves }).unwrap();
+        s.apply_command(Player::Gundla, Command::SelectSextantItem { item: Item::BagGoblet }).unwrap();
+        s.apply_command(Player::Sarah, Command::SelectSextantItem { item: Item::BagKey }).unwrap();
+        s.apply_command(Player::Marie, Command::SelectSextantItem { item: Item::Sextant }).unwrap();
+
+        assert_eq!(s.game.p.player(Player::Zacharias).items, vec![Item::Sextant]);
+        assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::PoisonRing, Item::Gloves]);
+        assert_eq!(s.game.p.player(Player::Gundla).items, vec![Item::BagKey]);
+        assert_eq!(s.game.p.player(Player::Marie).items, vec![Item::BagGoblet]);
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    }
+
+    #[test]
+    fn trade_coat() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.push(Item::Coat);
+        s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::Coat }).unwrap();
+        s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+
+        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Coat { available_jobs: Some(s.game.job_stack.clone()) } });
+        assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Coat { available_jobs: None } });
+
+        s.apply_command(Player::Sarah, Command::PickNewJob { job: Job::Doctor }).unwrap();
+        assert_eq!(s.game.p.player(Player::Sarah).job, Job::Doctor);
+        assert!(!s.game.p.player(Player::Sarah).job_is_visible);
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    }
+
+    #[test]
+    fn victory_solo_bad() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Key]);
+        s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: Vec::new() }).unwrap();
+        assert_eq!(s.turn, TurnState::GameOver { winner: Faction::Brotherhood });
+    }
+
+    #[test]
+    fn victory_solo_good() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Key, Item::Key]);
+        s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: Vec::new() }).unwrap();
+        assert_eq!(s.turn, TurnState::GameOver { winner: Faction::Order });
+    }
+
+    #[test]
+    fn victory_team_bad() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key]);
+        s.game.p.player_mut(Player::Gundla).items.extend_from_slice(&[Item::Key, Item::Key]);
+        s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: vec![Player::Gundla] }).unwrap();
+        assert_eq!(s.turn, TurnState::GameOver { winner: Faction::Brotherhood });
+    }
+
+    #[test]
+    fn victory_team_bad2() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key]);
+        s.game.p.player_mut(Player::Marie).items.extend_from_slice(&[Item::Key]);
+        s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: vec![Player::Marie] }).unwrap();
+        assert_eq!(s.turn, TurnState::GameOver { winner: Faction::Brotherhood });
+    }
+
+    #[test]
+    fn victory_team_good() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key]);
+        s.game.p.player_mut(Player::Marie).items.extend_from_slice(&[Item::Key, Item::Key]);
+        s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: vec![Player::Marie] }).unwrap();
+        assert_eq!(s.turn, TurnState::GameOver { winner: Faction::Order });
+    }
+
+    #[test]
+    fn victory_black_pearl() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Key, Item::Key, Item::BlackPearl]);
+        assert_eq!(s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: Vec::new() }), Err(CommandError::BlackPearl));
+    }
+
+    #[test]
+    fn attack_tie() {
+        let mut s = teststate();
+        s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Zacharias }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Gundla, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Marie, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Zacharias, Command::UsePriest { priest: false }).unwrap();
+
+        s.apply_command(Player::Gundla, Command::DeclareSupport { support: AttackSupport::Attack }).unwrap();
+        s.apply_command(Player::Marie, Command::DeclareSupport { support: AttackSupport::Defend }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::Hypnotize { target: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Gundla, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Marie, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None, target: None }).unwrap();
+
+        assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::BagKey, Item::Dagger]);
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    }
+
+    #[test]
+    fn attack_win() {
+        let mut s = teststate();
+        s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Zacharias }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Gundla, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Marie, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Zacharias, Command::UsePriest { priest: false }).unwrap();
+
+        s.apply_command(Player::Gundla, Command::DeclareSupport { support: AttackSupport::Attack }).unwrap();
+        s.apply_command(Player::Marie, Command::DeclareSupport { support: AttackSupport::Defend }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::Hypnotize { target: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::Duelist)), target: None }).unwrap();
+        s.apply_command(Player::Sarah, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Gundla, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Marie, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None, target: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: false }).unwrap();
+        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingCredentials { credentials: Some((Faction::Brotherhood, Job::Hypnotist)) } });
+        assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingCredentials { credentials: None } });
+        s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
+
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+        assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::BagKey]);
     }
 }

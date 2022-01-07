@@ -24,6 +24,14 @@ impl<'a> FromRequest<'a> for LoggedIn {
 }
 
 
+#[rocket::get("/fake_login")]
+pub async fn fake_login<'a>(cookies: &'a CookieJar<'a>) -> Redirect {
+    let mut c = Cookie::new(USERID, "42");
+    c.set_same_site(SameSite::Lax);
+    cookies.add_private(c);
+    Redirect::to("/")
+}
+
 #[rocket::get("/login?<returnurl>")]
 pub async fn login<'a>(returnurl: String) -> Redirect {
     Redirect::to(Redirector::new(returnurl, "/api/login_callback").unwrap().url().to_string())

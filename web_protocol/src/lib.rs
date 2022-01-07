@@ -75,7 +75,7 @@ pub enum PerspectiveTurnState {
     TurnStart { player: Player },
     GameOver { winner: Faction },
     TradePending { offerer: Player, target: Player, item: Option<Item> },
-    ResolvingTradeTrigger { offerer: Player, target: Player, is_first_item: bool, trigger: TradeTriggerState }, // for sextant, item selections are cleared
+    ResolvingTradeTrigger { offerer: Player, target: Player, is_first_item: bool, trigger: PerspectiveTradeTriggerState }, // for sextant, item selections are cleared
     Attacking { attacker: Player, defender: Player, state: PerspectiveAttackState }, // AttackState info ís always public
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -206,6 +206,14 @@ impl AttackSupport {
             AttackSupport::Abstain => 0,
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub enum PerspectiveTradeTriggerState {
+    Priviledge { items: Option<Vec<Item>> },
+    Monocle { faction: Option<Faction> },
+    Coat { available_jobs: Option<Vec<Job>> },
+    Sextant { item_selections: HashMap<Player, Item>, is_forward: Option<bool> },
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
