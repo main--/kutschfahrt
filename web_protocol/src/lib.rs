@@ -77,6 +77,7 @@ pub enum PerspectiveTurnState {
     TradePending { offerer: Player, target: Player, item: Option<Item> },
     ResolvingTradeTrigger { offerer: Player, target: Player, is_first_item: bool, trigger: PerspectiveTradeTriggerState }, // for sextant, item selections are cleared
     Attacking { attacker: Player, defender: Player, state: PerspectiveAttackState }, // AttackState info ís always public
+    DonatingItem { donor: Player, next_player: Player },
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum PerspectiveAttackState {
@@ -152,6 +153,7 @@ pub enum TurnState {
         defender: Player,
         state: AttackState,
     },
+    DonatingItem { donor: Player, next_player: Player },
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum AttackState {
@@ -248,6 +250,7 @@ pub enum Command {
     ClaimReward { steal_items: bool },
     StealItem { item: Item, give_back: Option<Item> },
 
+    DonateItem { target: Player, item: Item },
     DoneLookingAtThings,
 }
 

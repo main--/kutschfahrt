@@ -61,6 +61,15 @@ impl From<JobUseError> for CommandError {
     }
 }
 
+fn inventory_limit(players: usize) -> usize {
+    match players {
+        i if i < 3 => panic!("invalid player count"),
+        3 => 8,
+        4 => 6,
+        _ => 5,
+    }
+}
+
 impl GameStatePlayers {
     fn next_player(&self, p: Player) -> Player {
         let index = self.players.get_index_of(&p).expect("Invalid player");
@@ -331,21 +340,28 @@ impl State {
                     if actor != winner_player {
                         return Err(CommandError::NotYourTurn);
                     }
+                    let next_player = s.p.next_player(attacker);
                     match c {
-                        Command::DoneLookingAtThings if !steal_items => (),
+                        Command::DoneLookingAtThings if !steal_items => TurnState::WaitingForQuickblink(next_player),
                         Command::StealItem { item, give_back } if steal_items => {
-                            // TODO: implement inventory limit and item donation
+                            let mut attacker_state = s.p.player_mut(attacker);
+                            let mut defender_state = s.p.player_mut(defender);
 
-                            let (mut attacker_state, mut defender_state) = s.p.player_pair_mut(attacker, defender);
                             if give_back.is_some() != (defender_state.items.len() == 1) {
-                                // give back an item exactly when defender has exactly 1 item
+                                // violating giveback/donate game rules
                                 return Err(CommandError::InvalidStealCommand);
                             }
+
+                            // this whole structure is a bit more complex than it needs to be because we want
+                            // to not modify the game state until we have determined that everything is in order
+
                             let defender_del_idx = defender_state.items.iter().position(|x| *x == item).ok_or(CommandError::InvalidStealCommand)?;
                             let attacker_del_idx = match give_back {
                                 None => None,
-                                Some(i) => Some(attacker_state.items.iter().position(|x| *x == i).ok_or(CommandError::InvalidStealCommand)?),
+                                // small complication here because we need to let you donate the item you are stealing
+                                Some(i) => Some(attacker_state.items.iter().chain(iter::once(&item)).position(|x| *x == i).ok_or(CommandError::InvalidStealCommand)?),
                             };
+
 
                             // only now that everything is verified and valid can we actually modify the game state
                             attacker_state.items.push(item);
@@ -355,12 +371,17 @@ impl State {
 
                             defender_state.items.remove(defender_del_idx);
                             if let Some(i) = give_back {
-                                attacker_state.items.push(i);
+                                defender_state.items.push(i);
+                            }
+
+                            if attacker_state.items.len() > inventory_limit(s.p.players.len()) {
+                                TurnState::DonatingItem { donor: attacker, next_player: next_player }
+                            } else {
+                                TurnState::WaitingForQuickblink(next_player)
                             }
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
-                    TurnState::WaitingForQuickblink(s.p.next_player(attacker))
                 }
             }
             TurnState::TradePending { offerer, target, item } => {
@@ -479,6 +500,22 @@ impl State {
                     })
                         .map(|trigger| TurnState::ResolvingTradeTrigger { offerer, target, next_item: None, trigger })
                 }).unwrap_or(TurnState::WaitingForQuickblink(s.p.next_player(offerer)))
+            }
+            TurnState::DonatingItem { donor, next_player } => {
+                if actor != donor {
+                    return Err(CommandError::NotYourTurn);
+                }
+                match c {
+                    Command::DonateItem { target, item } => {
+                        let mut donor_state = s.p.player_mut(donor);
+                        let mut target_state = s.p.player_mut(target);
+                        let index = donor_state.items.iter().position(|&i| i == item).ok_or(CommandError::InvalidItemError(item))?;
+                        donor_state.items.remove(index);
+                        target_state.items.push(item);
+                        TurnState::WaitingForQuickblink(next_player)
+                    }
+                    _ => return Err(CommandError::InvalidCommandInThisContext),
+                }
             }
         };
         Ok(())
@@ -605,6 +642,7 @@ impl State {
 
                 Attacking { attacker, defender, state }
             }
+            &TurnState::DonatingItem { donor, next_player } => PerspectiveTurnState::DonatingItem { donor, next_player },
         };
         Perspective {
             you: self.game.p.player(p).clone(),
@@ -890,7 +928,7 @@ mod tests {
     }
 
     #[test]
-    fn attack_win() {
+    fn attack_win_creds() {
         let mut s = teststate();
         s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Zacharias }).unwrap();
 
@@ -911,11 +949,151 @@ mod tests {
         s.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None, target: None }).unwrap();
 
         s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: false }).unwrap();
-        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingCredentials { credentials: Some((Faction::Brotherhood, Job::Hypnotist)) } });
-        assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingCredentials { credentials: None } });
+        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingCredentials { target_faction: Faction::Brotherhood, target_job: Job::Hypnotist } });
+        assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: false }) });
         s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
 
         assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
         assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::BagKey]);
     }
+
+    #[test]
+    fn attack_win_steal_giveback() {
+        let mut s = teststate();
+        s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Zacharias }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Gundla, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Marie, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Zacharias, Command::UsePriest { priest: false }).unwrap();
+
+        s.apply_command(Player::Gundla, Command::DeclareSupport { support: AttackSupport::Attack }).unwrap();
+        s.apply_command(Player::Marie, Command::DeclareSupport { support: AttackSupport::Defend }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::Hypnotize { target: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::Duelist)), target: None }).unwrap();
+        s.apply_command(Player::Sarah, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Gundla, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Marie, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None, target: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: true }).unwrap();
+        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingItems { target_items: vec![Item::Gloves] } });
+        assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true }) });
+        s.apply_command(Player::Sarah, Command::StealItem { item: Item::Gloves, give_back: Some(Item::BagKey) }).unwrap();
+
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+        assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::Gloves]);
+        assert_eq!(s.game.p.player(Player::Zacharias).items, vec![Item::BagKey]);
+    }
+
+    #[test]
+    fn attack_win_steal() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Zacharias).items.push(Item::Coat);
+
+        s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Zacharias }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Gundla, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Marie, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Zacharias, Command::UsePriest { priest: false }).unwrap();
+
+        s.apply_command(Player::Gundla, Command::DeclareSupport { support: AttackSupport::Attack }).unwrap();
+        s.apply_command(Player::Marie, Command::DeclareSupport { support: AttackSupport::Defend }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::Hypnotize { target: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::Duelist)), target: None }).unwrap();
+        s.apply_command(Player::Sarah, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Gundla, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Marie, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None, target: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: true }).unwrap();
+        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingItems { target_items: vec![Item::Gloves, Item::Coat] } });
+        assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true }) });
+        s.apply_command(Player::Sarah, Command::StealItem { item: Item::Gloves, give_back: None }).unwrap();
+
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+        assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::BagKey, Item::Gloves]);
+        assert_eq!(s.game.p.player(Player::Zacharias).items, vec![Item::Coat]);
+    }
+
+    #[test]
+    fn attack_win_steal_donate() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Zacharias).items.push(Item::Coat);
+        s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Key, Item::Key, Item::Goblet, Item::Goblet]);
+
+        s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Zacharias }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Gundla, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Marie, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Zacharias, Command::UsePriest { priest: false }).unwrap();
+
+        s.apply_command(Player::Gundla, Command::DeclareSupport { support: AttackSupport::Attack }).unwrap();
+        s.apply_command(Player::Marie, Command::DeclareSupport { support: AttackSupport::Defend }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::Hypnotize { target: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::Duelist)), target: None }).unwrap();
+        s.apply_command(Player::Sarah, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Gundla, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Marie, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None, target: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: true }).unwrap();
+        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingItems { target_items: vec![Item::Gloves, Item::Coat] } });
+        assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true }) });
+        s.apply_command(Player::Sarah, Command::StealItem { item: Item::Gloves, give_back: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::DonateItem { target: Player::Marie, item: Item::Key }).unwrap();
+
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+        assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::BagKey, Item::Key, Item::Key, Item::Goblet, Item::Goblet, Item::Gloves]);
+        assert_eq!(s.game.p.player(Player::Zacharias).items, vec![Item::Coat]);
+        assert_eq!(s.game.p.player(Player::Marie).items, vec![Item::PoisonRing, Item::Key]);
+    }
+
+    #[test]
+    fn attack_win_steal_donate2() {
+        let mut s = teststate();
+        s.game.p.player_mut(Player::Zacharias).items.push(Item::Coat);
+        s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Key, Item::Key, Item::Goblet, Item::Goblet]);
+
+        s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Zacharias }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Gundla, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Marie, Command::UsePriest { priest: false }).unwrap();
+        s.apply_command(Player::Zacharias, Command::UsePriest { priest: false }).unwrap();
+
+        s.apply_command(Player::Gundla, Command::DeclareSupport { support: AttackSupport::Attack }).unwrap();
+        s.apply_command(Player::Marie, Command::DeclareSupport { support: AttackSupport::Defend }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::Hypnotize { target: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::Duelist)), target: None }).unwrap();
+        s.apply_command(Player::Sarah, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Gundla, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Marie, Command::ItemOrJob { buff: None, target: None }).unwrap();
+        s.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None, target: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: true }).unwrap();
+        assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingItems { target_items: vec![Item::Gloves, Item::Coat] } });
+        assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true }) });
+        s.apply_command(Player::Sarah, Command::StealItem { item: Item::Gloves, give_back: None }).unwrap();
+
+        s.apply_command(Player::Sarah, Command::DonateItem { target: Player::Marie, item: Item::Gloves }).unwrap();
+
+        assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+        assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::BagKey, Item::Key, Item::Key, Item::Key, Item::Goblet, Item::Goblet]);
+        assert_eq!(s.game.p.player(Player::Zacharias).items, vec![Item::Coat]);
+        assert_eq!(s.game.p.player(Player::Marie).items, vec![Item::PoisonRing, Item::Gloves]);
+    }
 }
+
+// https://silo.tips/download/die-kutschfahrt-zur-teufelsburg-autoren-michael-palm-und-lukas-zach
