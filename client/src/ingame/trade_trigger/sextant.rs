@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use web_protocol::{Perspective, Player, Item, Command};
 use yew::prelude::*;
 
-use crate::ingame::{Commander, CommandButton};
+use crate::ingame::CommandButton;
 
 #[derive(Properties, PartialEq)]
 pub struct ResolveSextantProps {

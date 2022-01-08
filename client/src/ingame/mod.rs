@@ -116,7 +116,7 @@ mod pregame;
 mod turnstart;
 mod trading;
 mod trade_trigger;
-
+mod donation;
 
 #[derive(Properties, PartialEq)]
 struct GameUiProps {
@@ -129,6 +129,8 @@ fn game_ui(props: &GameUiProps) -> Html {
         GameInfo::Game(p) => {
             let me = &p.players[p.your_player_index];
             let body = match &p.turn {
+                PerspectiveTurnState::DonatingItem { donor } if donor == &me.player => html! { <donation::ItemDonation perspective={p.clone()} /> },
+                PerspectiveTurnState::DonatingItem { donor } => html! { {format!("Waiting for {:?} to donate an item ...", donor)} },
                 PerspectiveTurnState::TurnStart { player } if player == &me.player => html! { <turnstart::MyTurnStart perspective={p.clone()} /> },
                 PerspectiveTurnState::TurnStart { player } => html! { {format!("Waiting for {} ...", player)} },
                 PerspectiveTurnState::GameOver { winner } => html! { <div class="victory-text">{format!("The {:?} is victorious!", winner)}</div> },
