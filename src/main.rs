@@ -18,7 +18,7 @@ fn main() {
     let mut state = State::new(vec![Player::Gundla, Player::Marie, Player::Zacharias, Player::Sarah].into_iter().collect(), &mut rng);
     dbg!(&state);
 
-    state.apply_command(Player::Marie, Command::Pass).unwrap();
+    //state.apply_command(Player::Marie, Command::Pass).unwrap();
 
     state.apply_command(Player::Zacharias, Command::InitiateAttack { player: Player::Marie }).unwrap();
     state.apply_command(Player::Marie, Command::UsePriest { priest: false }).unwrap();
@@ -41,11 +41,11 @@ fn main() {
     state.apply_command(Player::Zacharias, Command::ClaimReward { steal_items: false }).unwrap();
     state.apply_command(Player::Zacharias, Command::DoneLookingAtThings).unwrap();
 
-    state.apply_command(Player::Gundla, Command::OfferTrade { target: Player::Sarah, item: Item::BagGoblet }).unwrap();
-    state.apply_command(Player::Sarah, Command::RejectTrade).unwrap();
-
     state.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Zacharias, item: Item::Goblet }).unwrap();
     state.apply_command(Player::Zacharias, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+
+    state.apply_command(Player::Gundla, Command::OfferTrade { target: Player::Sarah, item: Item::BagGoblet }).unwrap();
+    state.apply_command(Player::Sarah, Command::RejectTrade).unwrap();
 
     state.apply_command(Player::Marie, Command::AnnounceVictory { teammates: vec![] }).unwrap();
 

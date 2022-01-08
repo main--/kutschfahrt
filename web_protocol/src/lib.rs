@@ -169,6 +169,7 @@ pub enum ItemDonationFollowup {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum AttackState {
     WaitingForPriest { passed: HashSet<Player> },
+    PayingPriest { priest: Player },
     DeclaringSupport(HashMap<Player, AttackSupport>),
     WaitingForHypnotizer(HashMap<Player, AttackSupport>),
     ItemsOrJobs {
@@ -252,6 +253,7 @@ pub enum Command {
 
     InitiateAttack { player: Player },
     UsePriest { priest: bool },
+    PayPriest { item: Item },
     DeclareSupport { support: AttackSupport },
     Hypnotize { target: Option<Player> },
     ItemOrJob {
