@@ -578,8 +578,8 @@ impl State {
     }
 
     pub fn new(mut players: Vec<Player>, rng: &mut impl Rng) -> State {
-        //players.push(Player::Zacharias);
-        //assert!(players.len() >= 3); // TODO: dreier spiel in sinnvoll
+        assert!(players.len() >= 4); // TODO: dreier spiel in sinnvoll
+
         // Das ist jetzt nicht mehr falsch
         let mut start_items = [
             Item::Key,
