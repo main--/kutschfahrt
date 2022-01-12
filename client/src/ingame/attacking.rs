@@ -50,6 +50,8 @@ pub fn attacking(props: &AttackingProps) -> Html {
                 .take(p.players.len())
                 .filter(|&x| x != attacker && x != defender);
 
+            attack_supporters.by_ref().take(support.len()).count();
+
             let my_turn = attack_supporters.next() == Some(myself);
 
             html! {
