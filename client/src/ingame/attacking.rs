@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use web_protocol::{PerspectiveAttackState, Player, AttackState, Command, Job, Item, AttackSupport, Perspective, AttackWinner, inventory_limit, Buff, BuffScore};
+use web_protocol::{PerspectiveAttackState, Player, AttackState, Command, Job, Item, AttackSupport, Perspective, AttackWinner, inventory_limit, Buff, BuffScore, BuffSource};
 use yew::prelude::*;
 use super::{CommandButton, DoneLookingBtn, SelectItem, ItemListEntry};
 
@@ -70,14 +70,14 @@ pub fn attacking(props: &AttackingProps) -> Html {
                 </>
             }
         }
-        PerspectiveAttackState::Normal(AttackState::WaitingForHypnotizer(support)) => {
+        PerspectiveAttackState::Normal(AttackState::WaitingForHypnotizer(votes)) => {
             let my_turn = myself == attacker;
             let am_hypnotist = p.you.job == Job::Hypnotist;
 
             html! {
                 <>
                     <h3>{"Hypnotizing"}</h3>
-                    <AttackOverview {attacker} {defender} votes={support.clone()} hypnotize_btn={am_hypnotist} />
+                    <AttackOverview {attacker} {defender} votes={votes.clone()} hypnotize_btn={am_hypnotist} />
 
                     {if my_turn {
                         html! {
@@ -89,24 +89,7 @@ pub fn attacking(props: &AttackingProps) -> Html {
                 </>
             }
         }
-        PerspectiveAttackState::Normal(AttackState::ItemsOrJobs { votes: support, buffs, passed }) => {
-            let my_turn = !passed.contains(&myself);
-
-            html! {
-                <>
-                    <h3>{"Items & Jobs"}</h3>
-                    <AttackOverview {attacker} {defender} votes={support.clone()} buffs={buffs.clone()} />
-
-                    {if my_turn {
-                        html! {
-                            <CommandButton text={"Pass"} command={Some(Command::ItemOrJob { buff: None, target: None })} />
-                        }
-                    } else {
-                        html! { <p>{"You have passed."}</p> }
-                    }}
-                </>
-            }
-        }
+        PerspectiveAttackState::Normal(AttackState::ItemsOrJobs { votes, buffs, passed }) => html! { <ItemsAndJobs {attacker} {defender} votes={votes.clone()} buffs={buffs.clone()} passed={passed.clone()} />},
         PerspectiveAttackState::Normal(AttackState::Resolving { winner }) => {
             let winner = match winner {
                 AttackWinner::Attacker => attacker,
@@ -231,7 +214,7 @@ pub fn attack_overview(props: &AttackOverviewProps) -> Html {
 
     let (attv, defv): (Vec<_>, Vec<_>) = buffs.iter().map(|b| b.raw_score).chain(votes.values().map(|v| v.vote_value())).partition(|&v| v > 0);
     let attacking_votes = 2 + attv.into_iter().sum::<BuffScore>();
-    let defending_votes = 2 + defv.into_iter().sum::<BuffScore>();
+    let defending_votes = 2 - defv.into_iter().sum::<BuffScore>();
 
     html! {
         <>
@@ -263,4 +246,57 @@ pub fn attack_overview(props: &AttackOverviewProps) -> Html {
 
 fn buff_score(x: BuffScore) -> String {
     format!("{}", (x as f32) / 2.)
+}
+
+#[derive(Properties, PartialEq)]
+pub struct ItemsAndJobsProps {
+    attacker: Player,
+    defender: Player,
+    votes: HashMap<Player, AttackSupport>,
+    buffs: Vec<Buff>,
+    passed: HashSet<Player>,
+}
+#[function_component(ItemsAndJobs)]
+pub fn items_and_jobs(props: &ItemsAndJobsProps) -> Html {
+    let &ItemsAndJobsProps { attacker, defender, ref votes, ref buffs, ref passed } = props;
+    let p = use_context::<Rc<Perspective>>().unwrap();
+
+    let myself = p.players[p.your_player_index].player;
+    let my_turn = !passed.contains(&myself);
+
+    let item = use_state(|| None);
+
+    html! {
+        <>
+            <h3>{"Items & Jobs"}</h3>
+            <AttackOverview {attacker} {defender} votes={votes.clone()} buffs={buffs.clone()} />
+
+            {if my_turn {
+                html! {
+                    <>
+                        <p>{"Note: This interface is WIP and lets you issue invalid commands. You should at least get an error message in these cases though."}</p>
+                        <SelectItem on_change={Callback::from({ let item = item.clone(); move |i| item.set(i) })}>
+                            {for p.you.items.iter().map(|&i| html_nested! { <ItemListEntry item={i} can_select={true} /> })}
+                        </SelectItem>
+                        <CommandButton text={"Use item"} command={item.map(move |item| Command::ItemOrJob { buff: Some(BuffSource::Item(item)), target: None })} />
+
+                        {if p.you.job == Job::PoisonMixer {
+                            html! {
+                                <>
+                                    <CommandButton text={"Use job to make attacker win"} command={Some(Command::ItemOrJob { buff: Some(BuffSource::Job(p.you.job)), target: Some(attacker) })} />
+                                    <CommandButton text={"Use job to make defender win"} command={Some(Command::ItemOrJob { buff: Some(BuffSource::Job(p.you.job)), target: Some(defender) })} />
+                                </>
+                            }
+                        } else {
+                            html! { <CommandButton text={"Use job"} command={Some(Command::ItemOrJob { buff: Some(BuffSource::Job(p.you.job)), target: None })} /> }
+                        }}
+
+                        <CommandButton text={"Pass"} command={Some(Command::ItemOrJob { buff: None, target: None })} />
+                    </>
+                }
+            } else {
+                html! { <p>{"You have passed."}</p> }
+            }}
+        </>
+    }
 }

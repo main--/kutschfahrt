@@ -305,6 +305,7 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "gloo-console",
+ "gloo-dialogs",
  "gloo-timers",
  "gloo-utils",
  "js-sys",

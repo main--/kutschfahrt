@@ -62,7 +62,7 @@ pub fn my_turn_start(props: &MyTurnStartProps) -> Html {
 
     let actiontext = match *movekind {
         WipMoveKind::None => Cow::from(""),
-        WipMoveKind::Pass => Cow::from("You pass."),
+        WipMoveKind::Pass => Cow::from("You are going to pass."),
         WipMoveKind::AnnounceVictory => {
             let mut text = String::new();
             if players.len() == 0 {

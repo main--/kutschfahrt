@@ -52,11 +52,14 @@ async fn post_json<T: serde::Serialize>(path: &str, body: &T) {
     opts.method("POST");
     opts.body(Some(&JsValue::from(&body)));
     let request = web_sys::Request::new_with_str_and_init(path, &opts).unwrap();
-    let _resp = JsFuture::from(window().fetch_with_request(&request)).await.unwrap();
-    /*let resp: web_sys::Response = resp.dyn_into().unwrap();
-    let text = JsFuture::from(resp.text().unwrap()).await.unwrap();
-    let text = text.as_string().unwrap();
-    serde_json::from_str(&text).unwrap()*/
+    let resp = JsFuture::from(window().fetch_with_request(&request)).await.unwrap();
+
+    let resp: web_sys::Response = resp.dyn_into().unwrap();
+    if !resp.ok() {
+        let text = JsFuture::from(resp.text().unwrap()).await.unwrap();
+        let text = text.as_string().unwrap();
+        gloo_dialogs::alert(&text);
+    }
 }
 
 fn view_game_item(game: String) -> Html {

@@ -32,7 +32,7 @@ pub fn select_item(props: &SelectItemProps) -> Html {
                             onchange.emit(Some(item));
                         }
                     }
-                })}>{format!("{:?}", i)}</div> }
+                })}>{format!("{:?}", item)}</div> }
             }) }
         </div>
     }
