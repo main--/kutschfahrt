@@ -215,8 +215,8 @@ pub enum AttackSupport {
 impl AttackSupport {
     pub fn vote_value(&self) -> BuffScore {
         match self {
-            AttackSupport::Attack => 1,
-            AttackSupport::Defend => -1,
+            AttackSupport::Attack => 2,
+            AttackSupport::Defend => -2,
             AttackSupport::Abstain => 0,
         }
     }
@@ -318,4 +318,13 @@ impl Job {
 
 #[derive(Debug)]
 pub struct JobUseError;
+
+pub fn inventory_limit(players: usize) -> usize {
+    match players {
+        i if i < 3 => panic!("invalid player count"),
+        3 => 8,
+        4 => 6,
+        _ => 5,
+    }
+}
 

@@ -1,8 +1,10 @@
+use std::rc::Rc;
+
 use gloo_console::log;
 use gloo_timers::future::TimeoutFuture;
 use web_sys::{HtmlInputElement};
 use yew::prelude::*;
-use web_protocol::{GameInfo, GameCommand, PerspectiveTurnState};
+use web_protocol::{GameInfo, GameCommand, PerspectiveTurnState, Perspective};
 
 pub struct Ingame {
     game: String,
@@ -111,12 +113,17 @@ impl Commander {
 
 mod command_btn;
 pub use command_btn::CommandButton;
+mod done_looking_btn;
+pub use done_looking_btn::DoneLookingBtn;
+mod select_items;
+pub use select_items::{SelectItem, ItemListEntry};
 
 mod pregame;
 mod turnstart;
 mod trading;
 mod trade_trigger;
 mod donation;
+mod attacking;
 
 #[derive(Properties, PartialEq)]
 struct GameUiProps {
@@ -137,9 +144,17 @@ fn game_ui(props: &GameUiProps) -> Html {
                 &PerspectiveTurnState::TradePending { offerer, target, item } if target == me.player => html! { <trading::TradeOffer you={p.you.clone()} {offerer} item={item.unwrap()} stack_empty={p.item_stack == 0} /> },
                 PerspectiveTurnState::TradePending { offerer, target, .. } => html! { <p class="trade-text">{format!("{} is offering an item to {} ...", offerer, target)}</p> },
                 &PerspectiveTurnState::ResolvingTradeTrigger { offerer, target, ref trigger, is_first_item } => html! { <trade_trigger::TradeTrigger perspective={p.clone()} {is_first_item} {offerer} {target} trigger={trigger.clone()} /> },
-                PerspectiveTurnState::Attacking { attacker, defender, state } => html! { <p class="attack-text">{format!("{} is attacking {}", attacker, defender)}</p> },
+
+                &PerspectiveTurnState::Attacking { attacker, defender, ref state } => html! { <attacking::Attacking {attacker} {defender} p={p.clone()} myself={me.player} state={state.clone()} /> },
             };
-            html! { <div class="hud">{body}</div> }
+            html! {
+                <div class="hud">
+                    <ContextProvider<Rc<Perspective>> context={Rc::new(p.clone())}>
+                        {body}
+                    </ContextProvider<Rc<Perspective>>>
+                </div>
+            }
         }
     }
 }
+

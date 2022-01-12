@@ -45,6 +45,12 @@ pub fn player_selection(props: &PlayerSelectionProps) -> Html {
     let selected_join_player = use_state(|| avail_players.clone().next().unwrap());
     let selected_join_player2 = selected_join_player.clone();
 
+    if !avail_players.clone().any(|ap| ap == *selected_join_player) {
+        if let Some(ap) = avail_players.clone().next() {
+            selected_join_player.set(ap);
+        }
+    }
+
     let cmd = use_context::<Commander>().unwrap();
 
     html! {

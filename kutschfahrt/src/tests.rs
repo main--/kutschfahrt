@@ -81,6 +81,36 @@ fn trade_bag_valid() {
 }
 
 #[test]
+fn trade_blackpearl_no_reject() {
+    let mut s = teststate();
+    s.game.p.player_mut(Player::Sarah).items.push(Item::BlackPearl);
+    s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::BlackPearl }).unwrap();
+    assert_eq!(s.apply_command(Player::Marie, Command::RejectTrade), Err(CommandError::MustAccept));
+    s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+    assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    assert!(s.game.p.player(Player::Sarah).items.contains(&Item::PoisonRing));
+    assert!(!s.game.p.player(Player::Sarah).items.contains(&Item::BlackPearl));
+
+    assert!(s.game.p.player(Player::Marie).items.contains(&Item::BlackPearl));
+    assert!(!s.game.p.player(Player::Marie).items.contains(&Item::PoisonRing));
+}
+
+#[test]
+fn trade_brokenmirror_no_reject() {
+    let mut s = teststate();
+    s.game.p.player_mut(Player::Sarah).items.push(Item::BrokenMirror);
+    s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::BrokenMirror }).unwrap();
+    assert_eq!(s.apply_command(Player::Marie, Command::RejectTrade), Err(CommandError::MustAccept));
+    s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+    assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    assert!(s.game.p.player(Player::Sarah).items.contains(&Item::PoisonRing));
+    assert!(!s.game.p.player(Player::Sarah).items.contains(&Item::BrokenMirror));
+
+    assert!(s.game.p.player(Player::Marie).items.contains(&Item::BrokenMirror));
+    assert!(!s.game.p.player(Player::Marie).items.contains(&Item::PoisonRing));
+}
+
+#[test]
 fn trade_monocle() {
     let mut s = teststate();
     s.game.p.player_mut(Player::Sarah).items.push(Item::Monocle);

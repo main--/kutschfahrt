@@ -55,20 +55,13 @@ pub enum CommandError {
     BlackPearl,
     #[error("You have already used this buff")]
     DuplicateBuffUsage,
+    #[error("The item forces you to accept this trade")]
+    MustAccept,
 }
 
 impl From<JobUseError> for CommandError {
     fn from(_: JobUseError) -> CommandError {
         CommandError::JobError
-    }
-}
-
-fn inventory_limit(players: usize) -> usize {
-    match players {
-        i if i < 3 => panic!("invalid player count"),
-        3 => 8,
-        4 => 6,
-        _ => 5,
     }
 }
 
@@ -457,6 +450,7 @@ impl State {
                                     }));
                         }
                     }
+                    Command::RejectTrade if [Item::BlackPearl, Item::BrokenMirror].contains(&item) => return Err(CommandError::MustAccept),
                     Command::RejectTrade => (),
                     _ => return Err(CommandError::InvalidCommandInThisContext),
                 }
