@@ -22,11 +22,35 @@ pub fn trade_trigger(props: &TradeTriggerProps) -> Html {
     let (relevant_player, other_player) = if is_first_item { (offerer, target) } else { (target, offerer) };
 
     match &props.trigger {
-        PerspectiveTradeTriggerState::Priviledge { items: None } => html! { <p>{format!("Waiting for {:?} to look at {:?}'s items.", relevant_player, other_player)}</p> },
+        PerspectiveTradeTriggerState::Priviledge { items: None } => html! { <p>{format!("Waiting for {} to look at {}'s items ...", relevant_player, other_player)}</p> },
         PerspectiveTradeTriggerState::Priviledge { items: Some(items) } => html! { <><p>{format!("You see the following items: {:?}", items)}</p><DoneLookingBtn /></> },
-        PerspectiveTradeTriggerState::Monocle { faction: None } => html! { <p>{format!("Waiting for {:?} to look at {:?}'s faction.", relevant_player, other_player)}</p> },
-        PerspectiveTradeTriggerState::Monocle { faction: Some(faction) } => html! { <><p>{format!("You see that {:?} is a member of the {:?}.", other_player, faction)}</p><DoneLookingBtn /></> },
-        PerspectiveTradeTriggerState::Coat { .. } => html! { {"todo"} },
+        PerspectiveTradeTriggerState::Monocle { faction: None } => html! { <p>{format!("Waiting for {} to look at {}'s faction ...", relevant_player, other_player)}</p> },
+        PerspectiveTradeTriggerState::Monocle { faction: Some(faction) } => html! { <><p>{format!("You see that {} is a member of the {:?}.", other_player, faction)}</p><DoneLookingBtn /></> },
+        PerspectiveTradeTriggerState::Coat { available_jobs: None } => html! { <p>{format!("Waiting for {} to pick a new job ...", relevant_player)}</p> },
+        PerspectiveTradeTriggerState::Coat { available_jobs: Some(jobs) } => html! { <coat::ResolveCoat jobs={jobs.clone()} /> },
         &PerspectiveTradeTriggerState::Sextant { ref item_selections, is_forward } => html! { <sextant::ResolveSextant perspective={p.clone()} {is_first_item} {offerer} {target} item_selections={item_selections.clone()} {is_forward}  /> },
     }
 }
+
+mod coat {
+    use web_protocol::{Job, Command};
+    use yew::prelude::*;
+    use crate::ingame::{SimpleDropdown, CommandButton};
+
+    #[derive(Properties, PartialEq)]
+    pub struct ResolveCoatProps {
+        pub jobs: Vec<Job>,
+    }
+    #[function_component(ResolveCoat)]
+    pub fn resolve_coat(props: &ResolveCoatProps) -> Html {
+        let j = use_state(|| props.jobs.iter().next().copied().unwrap());
+        html! {
+            <>
+                <p>{"Pick a new job:"}</p>
+                <SimpleDropdown<Job> options={props.jobs.clone()} on_change={Callback::from({ let j = j.clone(); Callback::from(move |x| j.set(x)) })} />
+                <CommandButton text={"Pick"} command={Some(Command::PickNewJob { job: *j })} />
+            </>
+        }
+    }
+}
+

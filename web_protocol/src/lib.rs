@@ -127,6 +127,24 @@ pub enum Job {
     Diplomat,
     Clairvoyant,
 }
+impl std::fmt::Display for Job {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Job::Thug => "Thug",
+            Job::GrandMaster => "Grandmaster",
+            Job::Bodyguard => "Bodyguard",
+            Job::Duelist => "Duelist",
+            Job::PoisonMixer => "Poison Mixer",
+            Job::Doctor => "Doctor",
+            Job::Priest => "Priest",
+            Job::Hypnotist => "Hypnotist",
+            Job::Diplomat => "Diplomat",
+            Job::Clairvoyant => "Clairvoyant",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Faction {
     Order,

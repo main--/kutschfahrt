@@ -1,5 +1,4 @@
-use super::Commander;
-use web_sys::HtmlSelectElement;
+use super::{Commander, SimpleDropdown};
 use yew::prelude::*;
 
 use web_protocol::{Player, GameCommand};
@@ -45,25 +44,15 @@ pub fn player_selection(props: &PlayerSelectionProps) -> Html {
     let selected_join_player = use_state(|| avail_players.clone().next().unwrap());
     let selected_join_player2 = selected_join_player.clone();
 
-    if !avail_players.clone().any(|ap| ap == *selected_join_player) {
-        if let Some(ap) = avail_players.clone().next() {
-            selected_join_player.set(ap);
-        }
-    }
-
     let cmd = use_context::<Commander>().unwrap();
 
     html! {
         <>
-            <div class="select">
-                <select onchange={Callback::from(move |e: Event| {
-                    let p: Player = e.target_unchecked_into::<HtmlSelectElement>().value().parse().unwrap();
-                    selected_join_player2.set(p);
-                })}>
-                    {for avail_players.map(|p| html! { <option value={p.to_string()} selected={p == *selected_join_player}>{p.to_string()}</option> })}
-                </select>
-            </div>
+            <SimpleDropdown<Player> options={avail_players.collect::<Vec<_>>()} on_change={Callback::from(move |x| {
+                selected_join_player2.set(x);
+            })} />
             <button class="button" onclick={Callback::once(move |_| cmd.cmd(GameCommand::JoinGame(*selected_join_player)))}>{"Join"}</button>
         </>
     }
 }
+
