@@ -25,10 +25,16 @@ pub enum GameCommand {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy, enum_utils::FromStr, enum_utils::IterVariants)]
 pub enum Player {
+    Marie,
     Gundla,
     Sarah,
-    Marie,
+    Romana,
+    Theodora,
+    Basilius,
+    Juan,
     Zacharias,
+    Michel,
+    Sinclair,
 }
 impl Player {
     pub fn all() -> impl Iterator<Item = Player> + Clone {
@@ -37,21 +43,22 @@ impl Player {
 }
 impl std::fmt::Display for Player {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        let name = match self {
+            Player::Marie => "Marie Sauniére",
+            Player::Gundla => "Gundla von Hochberg",
+            Player::Sarah => "Sarah Mac Mullin",
+            Player::Romana => "Romana Baranov",
+            Player::Theodora => "Theodora Krayenborg",
+            Player::Basilius => "Basilius Kartov",
+            Player::Juan => "Juan Tirador",
+            Player::Zacharias => "Bruder Zacharias",
+            Player::Michel => "Michel de Molay",
+            Player::Sinclair => "Sir Henry Sinclair",
+        };
+        write!(f, "{}", name)
     }
 }
-/*
-Marie Sauniére
-Gundla von Hochberg
-random green bitch
-Romana Baranov
-Theodora Krayenborg
-Basilius Kartov
-Juan Tirador
-Bruder Zacharias
-Michel de Molay
-Sir Henry Sinclair
-*/
+// https://boardgamegeek.com/image/301727/die-kutschfahrt-zur-teufelsburg
 
 /// A perspective is like `State` but contanis only information
 /// that a particular player is allowed to see.
