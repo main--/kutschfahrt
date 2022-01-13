@@ -7,7 +7,6 @@ use super::{CommandButton, DoneLookingBtn, SelectItem, ItemListEntry};
 
 #[derive(Properties, PartialEq)]
 pub struct AttackingProps {
-    pub p: Perspective,
     pub myself: Player,
     pub attacker: Player,
     pub defender: Player,
@@ -15,9 +14,10 @@ pub struct AttackingProps {
 }
 #[function_component(Attacking)]
 pub fn attacking(props: &AttackingProps) -> Html {
-    let &AttackingProps { myself, attacker, defender, ref p, ref state } = props;
+    let &AttackingProps { myself, attacker, defender, ref state } = props;
     let opponent = if attacker == myself { defender } else { attacker };
 
+    let p = use_context::<Rc<Perspective>>().unwrap();
     let me = &p.you;
 
 

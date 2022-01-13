@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use web_protocol::{Perspective, Player, Item, Command};
 use yew::prelude::*;
@@ -7,7 +8,6 @@ use crate::ingame::CommandButton;
 
 #[derive(Properties, PartialEq)]
 pub struct ResolveSextantProps {
-    pub perspective: Perspective,
     pub is_first_item: bool,
     pub offerer: Player,
     pub target: Player,
@@ -18,7 +18,7 @@ pub struct ResolveSextantProps {
 #[function_component(ResolveSextant)]
 pub fn resolve_sextant(props: &ResolveSextantProps) -> Html {
     let responsible_player = if props.is_first_item { props.offerer } else { props.target };
-    let p = &props.perspective;
+    let p = use_context::<Rc<Perspective>>().unwrap();
     let me = &p.players[p.your_player_index];
     let ResolveSextantProps { item_selections, is_forward, .. } = props;
 
@@ -49,7 +49,7 @@ pub fn resolve_sextant(props: &ResolveSextantProps) -> Html {
                     <>
                         <p class="sextant-text">{format!("Select an item to pass on to {}.", next_player)}</p>
                         <div class="itemlist">
-                            {for props.perspective.you.items.iter().map(|&i| {
+                            {for p.you.items.iter().map(|&i| {
                                 let is_selected = *item == Some(i);
                                 let selected = if *item == Some(i) { Some("selected") } else { None };
 

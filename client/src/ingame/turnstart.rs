@@ -1,10 +1,10 @@
 use std::borrow::Cow;
+use std::rc::Rc;
 
-use web_protocol::{Perspective, GameCommand, Command, Player};
+use web_protocol::{Command, Player, Perspective};
 use yew::prelude::*;
 
-use crate::ingame::Commander;
-//{"Command": {"action": "pass"}}
+use crate::ingame::CommandButton;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WipMoveKind {
@@ -17,12 +17,11 @@ enum WipMoveKind {
 
 #[derive(Properties, PartialEq)]
 pub struct MyTurnStartProps {
-    pub perspective: Perspective,
 }
 #[function_component(MyTurnStart)]
-pub fn my_turn_start(props: &MyTurnStartProps) -> Html {
+pub fn my_turn_start(_: &MyTurnStartProps) -> Html {
     enum HasPlayer { No, One, Many }
-    let cmd = use_context::<Commander>().unwrap();
+    let perspective = use_context::<Rc<Perspective>>().unwrap();
     let movekind = use_state(|| WipMoveKind::None);
     let players = use_state(|| Vec::<Player>::new());
     let item = use_state(|| None);
@@ -79,7 +78,7 @@ pub fn my_turn_start(props: &MyTurnStartProps) -> Html {
                     text += &p.to_string();
                 }
             }
-            Cow::from(format!("You are going to announce the victory of the {:?} {}.", props.perspective.you.faction, text))
+            Cow::from(format!("You are going to announce the victory of the {:?} {}.", perspective.you.faction, text))
         }
         WipMoveKind::OfferTrade => Cow::from(format!("You offer to trade a {} to {}.", item.map(|i| format!("{:?}", i)).unwrap_or("?".to_owned()), players.get(0).map(|p| p.to_string()).unwrap_or("?".to_owned()))),
         WipMoveKind::Attack => Cow::from(format!("You attack {}.", players.get(0).map(|p| p.to_string()).unwrap_or("?".to_owned()))),
@@ -88,8 +87,8 @@ pub fn my_turn_start(props: &MyTurnStartProps) -> Html {
     html! {
         <>
             <div class="playerlist">
-                {for props.perspective.players.iter().enumerate().map(|(i, p)| {
-                    let is_you = i == props.perspective.your_player_index;
+                {for perspective.players.iter().enumerate().map(|(i, p)| {
+                    let is_you = i == perspective.your_player_index;
                     let you = if is_you { Some("you") } else { None };
                     let selected = if players.contains(&p.player) { Some("selected") } else { None };
                     let can_select = match *movekind { WipMoveKind::Pass => false, _ => !is_you };
@@ -118,7 +117,7 @@ pub fn my_turn_start(props: &MyTurnStartProps) -> Html {
                 })}
             </div>
             <div class="itemlist">
-                {for props.perspective.you.items.iter().map(|&i| {
+                {for perspective.you.items.iter().map(|&i| {
                     let is_selected = *item == Some(i);
                     let selected = if *item == Some(i) { Some("selected") } else { None };
                     let can_select = match *movekind { WipMoveKind::OfferTrade | WipMoveKind::None => true, _ => false };
@@ -144,12 +143,7 @@ pub fn my_turn_start(props: &MyTurnStartProps) -> Html {
 
             <p class="actiontext">{actiontext}</p>
 
-            <button class="button actionsubmit" disabled={upcoming_command.is_none()} onclick={Callback::once(move |_| {
-                match upcoming_command {
-                    Some(c) => cmd.cmd(GameCommand::Command(c)),
-                    None => (),
-                }
-            })}>{"Submit"}</button>
+            <CommandButton text={"Submit"} command={upcoming_command} class={"actionsubmit"} />
         </>
     }
 }

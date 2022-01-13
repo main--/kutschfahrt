@@ -132,16 +132,16 @@ fn game_ui(props: &GameUiProps) -> Html {
         GameInfo::Game(p) => {
             let me = &p.players[p.your_player_index];
             let body = match &p.turn {
-                PerspectiveTurnState::DonatingItem { donor } if donor == &me.player => html! { <donation::ItemDonation perspective={p.clone()} /> },
+                PerspectiveTurnState::DonatingItem { donor } if donor == &me.player => html! { <donation::ItemDonation /> },
                 PerspectiveTurnState::DonatingItem { donor } => html! { {format!("Waiting for {:?} to donate an item ...", donor)} },
-                PerspectiveTurnState::TurnStart { player } if player == &me.player => html! { <turnstart::MyTurnStart perspective={p.clone()} /> },
+                PerspectiveTurnState::TurnStart { player } if player == &me.player => html! { <turnstart::MyTurnStart /> },
                 PerspectiveTurnState::TurnStart { player } => html! { {format!("Waiting for {} ...", player)} },
                 PerspectiveTurnState::GameOver { winner } => html! { <div class="victory-text">{format!("The {:?} is victorious!", winner)}</div> },
                 &PerspectiveTurnState::TradePending { offerer, target, item } if target == me.player => html! { <trading::TradeOffer you={p.you.clone()} {offerer} item={item.unwrap()} stack_empty={p.item_stack == 0} /> },
                 PerspectiveTurnState::TradePending { offerer, target, .. } => html! { <p class="trade-text">{format!("{} is offering an item to {} ...", offerer, target)}</p> },
-                &PerspectiveTurnState::ResolvingTradeTrigger { offerer, target, ref trigger, is_first_item } => html! { <trade_trigger::TradeTrigger perspective={p.clone()} {is_first_item} {offerer} {target} trigger={trigger.clone()} /> },
+                &PerspectiveTurnState::ResolvingTradeTrigger { offerer, target, ref trigger, is_first_item } => html! { <trade_trigger::TradeTrigger {is_first_item} {offerer} {target} trigger={trigger.clone()} /> },
 
-                &PerspectiveTurnState::Attacking { attacker, defender, ref state } => html! { <attacking::Attacking {attacker} {defender} p={p.clone()} myself={me.player} state={state.clone()} /> },
+                &PerspectiveTurnState::Attacking { attacker, defender, ref state } => html! { <attacking::Attacking {attacker} {defender} myself={me.player} state={state.clone()} /> },
             };
             html! {
                 <div class="hud">

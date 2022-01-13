@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use web_protocol::{Perspective, Command};
 use yew::prelude::*;
 
@@ -5,12 +7,13 @@ use crate::ingame::CommandButton;
 
 #[derive(Properties, PartialEq)]
 pub struct ItemDonationProps {
-    pub perspective: Perspective,
 }
 #[function_component(ItemDonation)]
-pub fn item_donation(props: &ItemDonationProps) -> Html {
+pub fn item_donation(_: &ItemDonationProps) -> Html {
     let player = use_state(|| None);
     let item = use_state(|| None);
+
+    let perspective = use_context::<Rc<Perspective>>().unwrap();
 
     let upcoming_command = match (*player, *item) {
         (Some(target), Some(item)) => Some(Command::DonateItem { target, item }),
@@ -20,8 +23,8 @@ pub fn item_donation(props: &ItemDonationProps) -> Html {
     html! {
         <>
             <div class="playerlist">
-                {for props.perspective.players.iter().enumerate().map(|(i, p)| {
-                    let is_you = i == props.perspective.your_player_index;
+                {for perspective.players.iter().enumerate().map(|(i, p)| {
+                    let is_you = i == perspective.your_player_index;
                     let you = if is_you { Some("you") } else { None };
                     let is_selected = *player == Some(p.player);
                     let selected = if is_selected { Some("selected") } else { None };
@@ -49,7 +52,7 @@ pub fn item_donation(props: &ItemDonationProps) -> Html {
                 })}
             </div>
             <div class="itemlist">
-                {for props.perspective.you.items.iter().map(|&i| {
+                {for perspective.you.items.iter().map(|&i| {
                     let is_selected = *item == Some(i);
                     let selected = if *item == Some(i) { Some("selected") } else { None };
                     let item = item.clone();
