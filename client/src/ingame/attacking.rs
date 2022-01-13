@@ -118,7 +118,7 @@ pub fn attacking(props: &AttackingProps) -> Html {
             if steal_items {
                 html! { <p>{format!("Waiting for {} to steal items ...", winner)}</p> }
             } else {
-                html! { <p>{format!("Waiting for {} to look at things ...", winner)}</p> }
+                html! { <p>{format!("Waiting for {} to look at faction & job ...", winner)}</p> }
             }
         }
     };
