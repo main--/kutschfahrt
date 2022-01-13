@@ -1,8 +1,9 @@
 use std::rc::Rc;
 
 use gloo_console::log;
-use gloo_timers::future::TimeoutFuture;
-use web_sys::{HtmlInputElement};
+use gloo_events::EventListener;
+use wasm_bindgen::JsCast;
+use web_sys::{HtmlInputElement, EventSource, MessageEvent};
 use yew::prelude::*;
 use web_protocol::{GameInfo, GameCommand, PerspectiveTurnState, Perspective};
 
@@ -10,6 +11,9 @@ pub struct Ingame {
     game: String,
     game_info: Option<GameInfo>,
     command: String,
+
+    eventsrc: EventSource,
+    _msg_listener: EventListener,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -23,37 +27,37 @@ pub enum Msg {
     Submit,
 }
 
-async fn update_state(s: String) -> Msg {
-    TimeoutFuture::new(1000).await;
-    let path = format!("/api/game/{}", s);
-    Msg::Refresh(super::fetch_json(&path).await)
-}
-
-impl Ingame {
-    fn trigger_refresh(&self, ctx: &Context<Self>) {
-        let game = self.game.clone();
-        ctx.link().send_future(async move { update_state(game).await });
-    }
-}
 impl Component for Ingame {
     type Message = Msg;
     type Properties = Props;
 
     fn create(ctx: &Context<Self>) -> Self {
+        let game = ctx.props().game.clone();
+        let eventsrc = EventSource::new(&format!("/api/game/{}/events", game)).unwrap();
+
+        let update_cb = ctx.link().callback(|gi| Msg::Refresh(gi));
+        let _msg_listener = EventListener::new(&eventsrc, "message", move |event| {
+            let event = event.dyn_ref::<MessageEvent>().unwrap();
+            let text = event.data().as_string().unwrap();
+            let gi = serde_json::from_str::<GameInfo>(&text).unwrap();
+            update_cb.emit(gi);
+        });
+
         let i = Ingame {
-            game: ctx.props().game.clone(),
+            game,
             game_info: None,
             command: String::new(),
+
+            eventsrc,
+            _msg_listener,
         };
-        i.trigger_refresh(ctx);
         i
     }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Refresh(info) => {
                 self.game_info = Some(info);
-                self.trigger_refresh(ctx);
             }
             Msg::TypeCommand(s) => {
                 self.command = s;
@@ -73,7 +77,7 @@ impl Component for Ingame {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <>
+            <div>
                 <ContextProvider<Commander> context={Commander { game: self.game.clone() }}>
                     {self.game_info.clone().map(|g| html! { <GameUi gamestate={g} /> }).into_iter().collect::<Html>()}
                 </ContextProvider<Commander>>
@@ -91,8 +95,12 @@ impl Component for Ingame {
                 <pre>
                     {serde_json::to_string_pretty(&self.game_info).unwrap()}
                 </pre>
-            </>
+            </div>
         }
+    }
+
+    fn destroy(&mut self, _: &Context<Self>) {
+        self.eventsrc.close();
     }
 }
 

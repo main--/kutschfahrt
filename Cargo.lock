@@ -306,6 +306,7 @@ dependencies = [
  "console_error_panic_hook",
  "gloo-console",
  "gloo-dialogs",
+ "gloo-events",
  "gloo-timers",
  "gloo-utils",
  "js-sys",
