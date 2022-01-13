@@ -493,3 +493,34 @@ fn attack_priest() {
     assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::BagKey]);
     assert_eq!(s.game.p.player(Player::Zacharias).items, vec![Item::Gloves, Item::Coat]);
 }
+
+#[test]
+fn attack_poison_mixer() {
+    let mut s = teststate();
+    s.game.p.player_mut(Player::Zacharias).job = Job::PoisonMixer;
+    s.game.p.player_mut(Player::Sarah).job = Job::PoisonMixer;
+    s.game.p.player_mut(Player::Marie).job = Job::PoisonMixer;
+
+    s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Zacharias }).unwrap();
+
+    s.apply_command(Player::Sarah, Command::UsePriest { priest: false }).unwrap();
+    s.apply_command(Player::Gundla, Command::UsePriest { priest: false }).unwrap();
+    s.apply_command(Player::Marie, Command::UsePriest { priest: false }).unwrap();
+    s.apply_command(Player::Zacharias, Command::UsePriest { priest: false }).unwrap();
+
+    s.apply_command(Player::Gundla, Command::DeclareSupport { support: AttackSupport::Attack }).unwrap();
+    s.apply_command(Player::Marie, Command::DeclareSupport { support: AttackSupport::Defend }).unwrap();
+
+    s.apply_command(Player::Sarah, Command::Hypnotize { target: None }).unwrap();
+
+    assert_eq!(s.apply_command(Player::Sarah, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::PoisonMixer)), target: Some(Player::Sarah) }), Err(CommandError::CantPoisonMixYourself));
+    assert_eq!(s.apply_command(Player::Sarah, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::PoisonMixer)), target: Some(Player::Zacharias) }), Err(CommandError::CantPoisonMixYourself));
+    assert_eq!(s.apply_command(Player::Sarah, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::PoisonMixer)), target: Some(Player::Marie) }), Err(CommandError::CantPoisonMixYourself));
+
+    assert_eq!(s.apply_command(Player::Zacharias, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::PoisonMixer)), target: Some(Player::Zacharias) }), Err(CommandError::CantPoisonMixYourself));
+
+    assert_eq!(s.apply_command(Player::Marie, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::PoisonMixer)), target: Some(Player::Marie) }), Err(CommandError::InvalidCommandInThisContext));
+    s.apply_command(Player::Marie, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::PoisonMixer)), target: Some(Player::Sarah) }).unwrap();
+
+    assert_eq!(s.turn, TurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: AttackState::Resolving { winner: AttackWinner::Attacker } });
+}

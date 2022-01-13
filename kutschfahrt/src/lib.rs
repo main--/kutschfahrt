@@ -57,6 +57,8 @@ pub enum CommandError {
     DuplicateBuffUsage,
     #[error("The item forces you to accept this trade")]
     MustAccept,
+    #[error("You can't use the Poison Mixer in a fight where you a the attacker or defender")]
+    CantPoisonMixYourself,
 }
 
 impl From<JobUseError> for CommandError {
@@ -157,10 +159,21 @@ impl State {
                         if !s.p.players.contains_key(&player) || actor == player {
                             return Err(CommandError::InvalidTargetPlayer);
                         }
+
+                        // if the priest card is already publicly visible, skip the priest phase entirely
+                        let priest_is_used = s.p.players.values().any(|p| p.borrow().job_is_visible && p.borrow().job == Job::Priest);
+                        // in addition, it is safe to auto-pass everyone who already has an open job
+                        let passed: HashSet<_> = s.p.players.iter().filter(|(_, v)| v.borrow().job_is_visible).map(|(&k, _)| k).collect();
+
+                        let state = if priest_is_used || passed.len() == s.p.players.len() {
+                            AttackState::DeclaringSupport(HashMap::new())
+                        } else {
+                            AttackState::WaitingForPriest { passed }
+                        };
                         TurnState::Attacking {
                             attacker: actor,
                             defender: player,
-                            state: AttackState::WaitingForPriest { passed: HashSet::new() },
+                            state,
                         }
                     }
                     _ => return Err(CommandError::InvalidCommandInThisContext),
@@ -291,6 +304,17 @@ impl State {
                                 AttackRole::AttackSupport(votes[&actor])
                             };
 
+                            // additional poison mixer validation:
+                            if let BuffSource::Job(Job::PoisonMixer) = &buff {
+                                if let AttackRole::Attacker | AttackRole::Defender = role {
+                                    return Err(CommandError::CantPoisonMixYourself);
+                                }
+                                match target {
+                                    Some(x) if [attacker, defender].contains(&x) => (),
+                                    _ => return Err(CommandError::InvalidCommandInThisContext),
+                                }
+                            }
+
                             // Check if using this buff is vaild for the player
                             match buff {
                                 BuffSource::Job(x) => s.p.player_mut(actor).use_job(x)?,
@@ -311,7 +335,7 @@ impl State {
                                     let winner = match target {
                                         Some(x) if x == attacker => AttackWinner::Attacker,
                                         Some(x) if x == defender => AttackWinner::Defender,
-                                        _ => return Err(CommandError::InvalidCommandInThisContext)
+                                        _ => unreachable!(),
                                     };
                                     TurnState::Attacking { attacker, defender, state: AttackState::Resolving { winner } }
                                 }
