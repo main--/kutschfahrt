@@ -96,6 +96,16 @@ impl State {
         let s = &mut self.game;
         self.turn = match self.turn.clone() {
             TurnState::GameOver { .. } => return Err(CommandError::GameOver),
+            TurnState::UnsuccessfulDiplomat { diplomat, .. } => {
+                if actor != diplomat {
+                    return Err(CommandError::NotYourTurn);
+                }
+                match c {
+                    // diplomat was unsuccessful, so we transition to waiting
+                    Command::DoneLookingAtThings => TurnState::WaitingForQuickblink(s.p.next_player(diplomat)),
+                    _ => return Err(CommandError::InvalidCommandInThisContext),
+                }
+            }
             TurnState::WaitingForQuickblink(p) => {
                 if actor != p {
                     return Err(CommandError::NotYourTurn);
@@ -602,7 +612,7 @@ impl State {
     }
 
     pub fn new(mut players: Vec<Player>, rng: &mut impl Rng) -> State {
-        assert!(players.len() >= 4); // TODO: dreier spiel in sinnvoll
+        //assert!(players.len() >= 4); // TODO: dreier spiel in sinnvoll
 
         // Das ist jetzt nicht mehr falsch
         let mut start_items = [
@@ -673,6 +683,10 @@ impl State {
         use PerspectiveTurnState::*;
         let turn = match &self.turn {
             &TurnState::WaitingForQuickblink(player) => TurnStart { player },
+            &TurnState::DoingClairvoyant(c) if c == p => DoingClairvoyant { player: c, item_stack: Some(self.game.item_stack.clone()) },
+            &TurnState::DoingClairvoyant(c) => DoingClairvoyant { player: c, item_stack: None },
+            &TurnState::UnsuccessfulDiplomat { diplomat , target } if diplomat == p => UnsuccessfulDiplomat { diplomat, target, inventory: Some(self.game.p.player(target).items.clone()) },
+            &TurnState::UnsuccessfulDiplomat { diplomat , target } => UnsuccessfulDiplomat { diplomat, target, inventory: None },
             &TurnState::GameOver { winner } => GameOver { winner },
             &TurnState::TradePending { offerer, target, item } if target == p => TradePending { offerer, target, item: Some(item) },
             &TurnState::TradePending { offerer, target, .. } => TradePending { offerer, target, item: None },

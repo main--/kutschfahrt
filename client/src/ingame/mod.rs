@@ -150,6 +150,11 @@ fn game_ui(props: &GameUiProps) -> Html {
                 &PerspectiveTurnState::ResolvingTradeTrigger { offerer, target, ref trigger, is_first_item } => html! { <trade_trigger::TradeTrigger {is_first_item} {offerer} {target} trigger={trigger.clone()} /> },
 
                 &PerspectiveTurnState::Attacking { attacker, defender, ref state } => html! { <attacking::Attacking {attacker} {defender} myself={me.player} state={state.clone()} /> },
+
+                &PerspectiveTurnState::DoingClairvoyant { player, .. } if player != me.player => html! { <p>{format!("Waiting for the Clairvoyant ({}) to do their work ...", player)}</p> },
+                PerspectiveTurnState::DoingClairvoyant { player, item_stack } => html! { {"todo"} },
+                &PerspectiveTurnState::UnsuccessfulDiplomat { diplomat, target, .. } if diplomat != me.player => html! { <p>{format!("Waiting for the Diplomat ({}) to confirm that {} does not have the requested item ...", diplomat, target)}</p> },
+                PerspectiveTurnState::UnsuccessfulDiplomat { target, inventory, .. } => html! { <><p>{format!("Since {} does not have the requested item, you may see their inventory: {:?}", target, inventory)}</p><DoneLookingBtn /></> },
             };
             html! {
                 <div class="hud">

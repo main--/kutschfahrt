@@ -31,5 +31,17 @@ pub fn trade_trigger(props: &TradeTriggerProps) -> Html {
 
 mod coat;
 
+// TODO:
+// hellseher
+// diplomat
+
+// es braucht dringend dudum
+
+// foliant should be indicated to the others
+
+// turn number
+
+// wappen der loge sieg verkünden
 
 
+// funny stats like "zacharias hat 3x den job gewechselt" "zacharias hat 90% der kämpfe verloren"

@@ -80,6 +80,9 @@ pub struct PerspectivePlayer {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum PerspectiveTurnState {
     TurnStart { player: Player },
+    DoingClairvoyant { player: Player, item_stack: Option<Vec<Item>> },
+    UnsuccessfulDiplomat { diplomat: Player, target: Player, inventory: Option<Vec<Item>> },
+
     GameOver { winner: Faction },
     TradePending { offerer: Player, target: Player, item: Option<Item> },
     ResolvingTradeTrigger { offerer: Player, target: Player, is_first_item: bool, trigger: PerspectiveTradeTriggerState }, // for sextant, item selections are cleared
@@ -161,6 +164,11 @@ pub enum Faction {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TurnState {
     WaitingForQuickblink(Player),
+
+    // job actions are currently only possible at turn start
+    DoingClairvoyant(Player),
+    UnsuccessfulDiplomat { diplomat: Player, target: Player },
+
     GameOver { winner: Faction },
     TradePending {
         offerer: Player,
@@ -268,6 +276,10 @@ pub enum TradeTriggerState {
 pub enum Command {
     Pass,
     AnnounceVictory { teammates: Vec<Player> },
+
+    UseDiplomat { target: Player, item: Item },
+    UseClairvoyant,
+    ClairvoyantSetItems { top_items: Vec<Item> },
 
     OfferTrade { target: Player, item: Item },
     RejectTrade,
