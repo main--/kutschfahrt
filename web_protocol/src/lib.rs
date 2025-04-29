@@ -166,7 +166,7 @@ pub enum TurnState {
     WaitingForQuickblink(Player),
 
     // job actions are currently only possible at turn start
-    DoingClairvoyant(Player),
+    DoingClairvoyant { clairvoyant: Player, next: Player },
     UnsuccessfulDiplomat { diplomat: Player, target: Player },
 
     GameOver { winner: Faction },
@@ -277,9 +277,12 @@ pub enum Command {
     Pass,
     AnnounceVictory { teammates: Vec<Player> },
 
-    UseDiplomat { target: Player, item: Item },
+    UseDiplomat { target: Player, item: Item, return_item: Item },
     UseClairvoyant,
-    ClairvoyantSetItems { top_items: Vec<Item> },
+    ClairvoyantSetItems {
+        /// always exactly two items unless the stack has fewer than two items in total
+        top_items: Vec<Item>
+    },
 
     OfferTrade { target: Player, item: Item },
     RejectTrade,

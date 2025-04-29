@@ -2,7 +2,7 @@
 
 use std::cell::RefCell;
 use std::collections::{HashSet, HashMap};
-use std::iter;
+use std::{iter, cmp};
 use std::ops::{Deref, DerefMut};
 
 use indexmap::IndexMap;
@@ -59,6 +59,8 @@ pub enum CommandError {
     MustAccept,
     #[error("You can't use the Poison Mixer in a fight where you a the attacker or defender")]
     CantPoisonMixYourself,
+    #[error("Clairvoyant needs to select exactly two items (unless the stack is almost empty)")]
+    WrongNumberOfClairvoyantItems,
 }
 
 impl From<JobUseError> for CommandError {
@@ -184,6 +186,31 @@ impl State {
                             attacker: actor,
                             defender: player,
                             state,
+                        }
+                    }
+
+                    Command::UseClairvoyant => {
+                        s.p.player_mut(p).use_job(Job::Clairvoyant)?;
+                        TurnState::DoingClairvoyant { clairvoyant: p, next: p }
+                    }
+                    Command::UseDiplomat { target, item, return_item } => {
+                        if !s.p.players.contains_key(&target) || actor == target {
+                            return Err(CommandError::InvalidTargetPlayer);
+                        }
+
+                        s.p.player_mut(p).use_job(Job::Diplomat)?;
+                        let (actor_items, target_items) = s.p.player_pair_mut(actor, target);
+                        let return_item_index = actor_items.items.iter().position(|&x| x == return_item).ok_or(CommandError::InvalidItemError(return_item))?;
+
+                        match target_items.items.iter().position(|&x| x == item) {
+                            Some(asked_item_index) => {
+                                todo!();
+                                //std::mem::swap(&mut actor_items.items[return_item_index], &mut target_items.items[asked_item_index]);
+                                //TurnState::TradePending { offerer: (), target: (), item: () }
+                            }
+                            None => {
+                                TurnState::UnsuccessfulDiplomat { diplomat: actor, target }
+                            }
                         }
                     }
                     _ => return Err(CommandError::InvalidCommandInThisContext),
@@ -607,6 +634,30 @@ impl State {
                     _ => return Err(CommandError::InvalidCommandInThisContext),
                 }
             }
+            TurnState::DoingClairvoyant { clairvoyant, next } => {
+                if actor != clairvoyant {
+                    return Err(CommandError::NotYourTurn);
+                }
+                match c {
+                    Command::ClairvoyantSetItems { top_items } => {
+                        if top_items.len() != cmp::min(2, s.item_stack.len()) {
+                            return Err(CommandError::WrongNumberOfClairvoyantItems);
+                        }
+
+                        // TODO: make this deterministic
+                        s.item_stack.shuffle(&mut rand::thread_rng());
+
+
+                        for (i, item) in top_items.into_iter().enumerate() {
+                            let pos = i + s.item_stack.iter().skip(i).position(|&x| x == item).ok_or(CommandError::InvalidItemError(item))?;
+                            s.item_stack.swap(i, pos);
+                        }
+
+                        TurnState::WaitingForQuickblink(next)
+                    }
+                    _ => return Err(CommandError::InvalidCommandInThisContext),
+                }
+            }
         };
         Ok(())
     }
@@ -683,8 +734,8 @@ impl State {
         use PerspectiveTurnState::*;
         let turn = match &self.turn {
             &TurnState::WaitingForQuickblink(player) => TurnStart { player },
-            &TurnState::DoingClairvoyant(c) if c == p => DoingClairvoyant { player: c, item_stack: Some(self.game.item_stack.clone()) },
-            &TurnState::DoingClairvoyant(c) => DoingClairvoyant { player: c, item_stack: None },
+            &TurnState::DoingClairvoyant { clairvoyant: c, .. } if c == p => DoingClairvoyant { player: c, item_stack: Some(self.game.item_stack.clone()) },
+            &TurnState::DoingClairvoyant { clairvoyant: c, .. } => DoingClairvoyant { player: c, item_stack: None },
             &TurnState::UnsuccessfulDiplomat { diplomat , target } if diplomat == p => UnsuccessfulDiplomat { diplomat, target, inventory: Some(self.game.p.player(target).items.clone()) },
             &TurnState::UnsuccessfulDiplomat { diplomat , target } => UnsuccessfulDiplomat { diplomat, target, inventory: None },
             &TurnState::GameOver { winner } => GameOver { winner },

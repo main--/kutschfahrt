@@ -141,6 +141,7 @@ async fn rocket() -> _ {
         .mount("/", FileServer::from("../client/dist"))
         .mount("/", rocket::routes![spa_fallback])
         .mount("/api/", rocket::routes![
+            login::fake_login, login::fake_login2,
 
             login::login,
             login::login_cb,

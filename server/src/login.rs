@@ -31,6 +31,13 @@ pub async fn fake_login<'a>(cookies: &'a CookieJar<'a>) -> Redirect {
     cookies.add_private(c);
     Redirect::to("/")
 }
+#[rocket::get("/fake_login2")]
+pub async fn fake_login2<'a>(cookies: &'a CookieJar<'a>) -> Redirect {
+    let mut c = Cookie::new(USERID, "43");
+    c.set_same_site(SameSite::Lax);
+    cookies.add_private(c);
+    Redirect::to("/")
+}
 
 #[rocket::get("/login?<returnurl>")]
 pub async fn login<'a>(returnurl: String) -> Redirect {

@@ -6,6 +6,8 @@ use kutschfahrt::*;
 use web_protocol::*;
 
 fn main() {
+    //println!("{}", serde_json::to_string(&GameCommand::Command(Command::DeclareSupport { support: AttackSupport::Attack })).unwrap());
+    println!("{}", serde_json::to_string(&GameCommand::Command(Command::PickNewJob { job: Job::Clairvoyant })).unwrap());
     /*
     println!("{}", serde_json::to_string(&Command::Pass).unwrap());
     println!("{}", serde_json::to_string(&Command::AnnounceVictory { teammates: vec![Player::Gundla, Player::Sarah] }).unwrap());
