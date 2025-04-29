@@ -47,7 +47,9 @@ fn main() {
     state.apply_command(Player::Zacharias, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
 
     state.apply_command(Player::Gundla, Command::OfferTrade { target: Player::Sarah, item: Item::BagGoblet }).unwrap();
-    state.apply_command(Player::Sarah, Command::RejectTrade).unwrap();
+    state.apply_command(Player::Sarah, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+    println!("{:#?}", state);
+    //state.apply_command(Player::Sarah, Command::RejectTrade).unwrap();
 
     state.apply_command(Player::Marie, Command::AnnounceVictory { teammates: vec![] }).unwrap();
 

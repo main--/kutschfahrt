@@ -178,25 +178,31 @@ pub enum TurnState {
     ResolvingTradeTrigger {
         offerer: Player,
         target: Player,
-        next_item: Option<Item>,
         trigger: TradeTriggerState,
+        next_state: FollowupState,
     },
     Attacking {
         attacker: Player,
         defender: Player,
         state: AttackState,
     },
-    DonatingItem { donor: Player, followup: ItemDonationFollowup },
+    DonatingItem { donor: Player, followup: FollowupState },
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
-pub enum ItemDonationFollowup {
-    NextPlayer(Player),
+pub enum FollowupState {
+    State(Box<TurnState>),
     TradeTriggers {
         offerer: Player,
         target: Player,
         item: Item,
+        next_state: Box<TurnState>,
     },
+}
+impl FollowupState {
+    pub fn next_player(player: Player) -> Self {
+        FollowupState::State(Box::new(TurnState::WaitingForQuickblink(player)))
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
