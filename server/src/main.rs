@@ -91,7 +91,7 @@ async fn game_post(cmd: Json<GameCommand>, db: &State<SqlitePool>, id: String, l
     let state = sqlx::query_scalar!("SELECT state FROM game_state WHERE gameid = ?", id).fetch_optional(&**db).await?;
     match (cmd.into_inner(), state) {
         (GameCommand::JoinGame(player), None) => {
-            let player = player.to_string();
+            let player = format!("{player:?}");
             sqlx::query!("INSERT INTO game_players(gameid, steamid, player_character) VALUES (?, ?, ?)", id, l.steamid, player).execute(&**db).await?;
         }
         (GameCommand::LeaveGame, None) => {

@@ -1,6 +1,6 @@
 use rocket::response::Redirect;
 use rocket::http::uri::Origin;
-use rocket::http::{CookieJar, Cookie, SameSite};
+use rocket::http::{Cookie, CookieJar, SameSite, Status};
 use rocket::request::{Outcome, FromRequest};
 use steam_auth::{Verifier, Redirector};
 
@@ -17,7 +17,7 @@ impl<'a> FromRequest<'a> for LoggedIn {
         let jar = <&'a CookieJar>::from_request(req).await.unwrap();
         let steamid = match jar.get_private(USERID).and_then(|x| x.value().parse().ok()) {
             Some(x) => x,
-            None => return Outcome::Forward(()),
+            None => return Outcome::Forward(Status::Ok),
         };
         Outcome::Success(LoggedIn { steamid })
     }
