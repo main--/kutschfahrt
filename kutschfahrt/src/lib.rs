@@ -200,13 +200,15 @@ impl State {
 
                         s.p.player_mut(p).use_job(Job::Diplomat)?;
                         let (actor_items, target_items) = s.p.player_pair_mut(actor, target);
-                        let return_item_index = actor_items.items.iter().position(|&x| x == return_item).ok_or(CommandError::InvalidItemError(return_item))?;
+                        let _return_item_index = actor_items.items.iter().position(|&x| x == return_item).ok_or(CommandError::InvalidItemError(return_item))?;
+                        let stack_empty = s.item_stack.is_empty();
+                        let resolved_target_item = target_items.items.iter().copied().find(|&x| x == item || (stack_empty && (item == Item::Goblet && x == Item::BagGoblet) || (item == Item::Key && x == Item::BagKey)));
+                        drop((actor_items, target_items));
 
-                        match target_items.items.iter().position(|&x| x == item) {
-                            Some(asked_item_index) => {
-                                todo!();
-                                //std::mem::swap(&mut actor_items.items[return_item_index], &mut target_items.items[asked_item_index]);
-                                //TurnState::TradePending { offerer: (), target: (), item: () }
+                        match resolved_target_item {
+                            Some(target_item) => {
+                                let next_state = TurnState::WaitingForQuickblink(p); // after diplomat trade it's my turn again
+                                perform_trade(s, target, target_item, actor, return_item, next_state)?
                             }
                             None => {
                                 TurnState::UnsuccessfulDiplomat { diplomat: actor, target }
@@ -476,54 +478,7 @@ impl State {
                 match c {
                     _ if actor != target => return Err(CommandError::NotYourTurn),
                     Command::AcceptTrade { item: item2 } => {
-                        let items = [item, item2];
-                        if !s.item_stack.is_empty() && items.contains(&Item::BagGoblet) && items.contains(&Item::BagKey) {
-                            // TODO: is item stack even relevant here?
-                            return Err(CommandError::InvalidItemError(item2)); // can't swap bag for bag
-                        }
-
-                        let (mut offerer_state, mut target_state) = s.p.player_pair_mut(offerer, target);
-
-                        let idx_offerer = offerer_state.items.iter().position(|&i| i == item)
-                            .expect("We should not have allowed them to offer an item they don't even have.");
-                        let idx_target = match target_state.items.iter().position(|&i| i == item2) {
-                            Some(i) => i,
-                            None => return Err(CommandError::InvalidItemError(item2)),
-                        };
-
-                        // swap the items
-                        std::mem::swap(&mut offerer_state.items[idx_offerer], &mut target_state.items[idx_target]);
-                        // TODO: does this represent the game rules accurately?
-
-                        // no triggers if broken mirror was swapped
-                        if ![item, item2].contains(&Item::BrokenMirror) {
-                            // triggers for offered item
-                            let np = s.p.players.len();
-
-                            let next_state = Box::new(newstate);
-
-                            newstate = match try_resolve_trade_trigger(item, &mut s.item_stack, &mut offerer_state, &mut target_state, np) {
-                                Some(trigger) => {
-                                    let fus = FollowupState::TradeTriggers { offerer, target, item: item2, next_state };
-                                    match trigger {
-                                        Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer, target, next_state: fus, trigger },
-                                        Err(NeedDonation) => TurnState::DonatingItem { donor: offerer, followup: fus },
-                                    }
-                                }
-                                None => {
-                                    match try_resolve_trade_trigger(item2, &mut s.item_stack, &mut target_state, &mut offerer_state, np) {
-                                        Some(trigger) => {
-                                            let next_state = FollowupState::State(next_state);
-                                            match trigger {
-                                                Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer, target, trigger, next_state },
-                                                Err(NeedDonation) => TurnState::DonatingItem { donor: target, followup: next_state },
-                                            }
-                                        }
-                                        None => *next_state,
-                                    }
-                                }
-                            }
-                        }
+                        newstate = perform_trade(s, offerer, item, target, item2, newstate)?;
                     }
                     Command::RejectTrade if [Item::BlackPearl, Item::BrokenMirror].contains(&item) => return Err(CommandError::MustAccept),
                     Command::RejectTrade => (),
@@ -851,6 +806,64 @@ fn resolve_trade_followup(
             }
         }
     }
+}
+fn perform_trade(
+    s: &mut GameState,
+    offerer: Player,
+    item: Item,
+    target: Player,
+    item2: Item,
+    next_state: TurnState,
+) -> Result<TurnState, CommandError> {
+    let items = [item, item2];
+    if !s.item_stack.is_empty() && items.contains(&Item::BagGoblet) && items.contains(&Item::BagKey) {
+        // TODO: is item stack even relevant here?
+        return Err(CommandError::InvalidItemError(item2)); // can't swap bag for bag
+    }
+
+    let (mut offerer_state, mut target_state) = s.p.player_pair_mut(offerer, target);
+
+    let idx_offerer = offerer_state.items.iter().position(|&i| i == item)
+        .expect("We should not have allowed them to offer an item they don't even have.");
+    let idx_target = match target_state.items.iter().position(|&i| i == item2) {
+        Some(i) => i,
+        None => return Err(CommandError::InvalidItemError(item2)),
+    };
+
+    std::mem::swap(&mut offerer_state.items[idx_offerer], &mut target_state.items[idx_target]);
+    // TODO: does this represent the game rules accurately?
+
+    Ok(if items.contains(&Item::BrokenMirror) {
+        // no triggers if broken mirror was swapped
+        next_state
+    } else {
+        // triggers for offered item
+        let np = s.p.players.len();
+
+        let next_state = Box::new(next_state);
+
+        match try_resolve_trade_trigger(item, &mut s.item_stack, &mut offerer_state, &mut target_state, np) {
+            Some(trigger) => {
+                let fus = FollowupState::TradeTriggers { offerer, target, item: item2, next_state };
+                match trigger {
+                    Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer, target, next_state: fus, trigger },
+                    Err(NeedDonation) => TurnState::DonatingItem { donor: offerer, followup: fus },
+                }
+            }
+            None => {
+                match try_resolve_trade_trigger(item2, &mut s.item_stack, &mut target_state, &mut offerer_state, np) {
+                    Some(trigger) => {
+                        let next_state = FollowupState::State(next_state);
+                        match trigger {
+                            Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer, target, trigger, next_state },
+                            Err(NeedDonation) => TurnState::DonatingItem { donor: target, followup: next_state },
+                        }
+                    }
+                    None => *next_state,
+                }
+            }
+        }
+    })
 }
 
 
