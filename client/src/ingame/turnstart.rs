@@ -4,6 +4,7 @@ use std::rc::Rc;
 use web_protocol::{Command, Item, Job, Perspective, Player};
 use yew::prelude::*;
 
+use crate::ingame::playerlist::PlayerList;
 use crate::ingame::{CommandButton, SimpleDropdown};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -31,11 +32,13 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
     let movekind = use_state(|| WipMoveKind::None);
     let players = use_state(|| Vec::<Player>::new());
     let item = use_state(|| None);
+    let item_idx = use_state(|| None);
     let diplomat_item = use_state(|| None);
     let action_btn = |kind: WipMoveKind, text: &'static str, has_player: HasPlayer, has_item: bool| -> Html {
         let movekind = movekind.clone();
         let players = players.clone();
         let item = item.clone();
+        let item_idx = item_idx.clone();
         let active = if *movekind == kind { Some("is-dark") } else { None };
         html! { <button class={classes!("button", "actionchoice", active)} onclick={Callback::once(move |_| {
             if *movekind == kind {
@@ -49,6 +52,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
                 }
                 if !has_item {
                     item.set(None);
+                    item_idx.set(None);
                 }
             }
         })}>{text}</button> }
@@ -116,49 +120,24 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
 
     html! {
         <>
-            <div class="playerlist">
-                {for perspective.players.iter().enumerate().map(|(i, p)| {
-                    let is_you = i == perspective.your_player_index;
-                    let you = if is_you { Some("you") } else { None };
-                    let selected = if players.contains(&p.player) { Some("selected") } else { None };
-                    let can_select = match *movekind { WipMoveKind::Pass | WipMoveKind::UseClairvoyant => false, _ => !is_you };
-                    let selectable = if can_select { Some("selectable") } else { None };
-
-                    let players = players.clone();
-                    let player = p.player;
-
-                    html! {
-                        <div class={classes!("entry", you, selected, selectable)} onclick={Callback::from(move |_| {
-                            if can_select {
-                                let mut p = (*players).clone();
-                                if p.contains(&player) {
-                                    p.retain(|&x| x != player);
-                                } else {
-                                    p.push(player);
-                                }
-                                players.set(p);
-                            }
-                        })}>
-                            <div class="name">{p.player.to_string()}</div>
-                            <div class="job">{p.job.map(|j| format!("{:?}", j)).unwrap_or("?".to_owned())}</div>
-                            <div class="item_count">{p.item_count}</div>
-                        </div>
-                    }
-                })}
-            </div>
+            <PlayerList selected={Some(players)} block_select={matches!(*movekind, WipMoveKind::Pass | WipMoveKind::UseClairvoyant)} />
+            {"Your items:"}
             <div class="itemlist">
-                {for perspective.you.items.iter().map(|&i| {
-                    let is_selected = *item == Some(i);
-                    let selected = if *item == Some(i) { Some("selected") } else { None };
+                {for perspective.you.items.iter().enumerate().map(|(idx, &i)| {
+                    let is_selected = *item_idx == Some(idx);
+                    let selected = if is_selected { Some("selected") } else { None };
                     let can_select = match *movekind { WipMoveKind::OfferTrade | WipMoveKind::UseDiplomat | WipMoveKind::None => true, _ => false };
                     let selectable = if can_select { Some("selectable") } else { None };
                     let item = item.clone();
+                    let item_idx = item_idx.clone();
                     html! { <div class={classes!("entry", selected, selectable)} onclick={Callback::from(move |_| {
                         if can_select {
                             if is_selected {
                                 item.set(None);
+                                item_idx.set(None);
                             } else {
                                 item.set(Some(i));
+                                item_idx.set(Some(idx));
                             }
                         }
                     })}>{format!("{:?}", i)}</div> }
