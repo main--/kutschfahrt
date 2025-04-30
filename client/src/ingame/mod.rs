@@ -130,6 +130,7 @@ mod trade_trigger;
 mod donation;
 mod attacking;
 mod playerlist;
+mod clairvoyant;
 
 #[derive(Properties, PartialEq)]
 struct GameUiProps {
@@ -163,7 +164,7 @@ fn game_ui(props: &GameUiProps) -> Html {
                 &PerspectiveTurnState::Attacking { attacker, defender, ref state } => html! { <attacking::Attacking {attacker} {defender} myself={me.player} state={state.clone()} /> },
 
                 &PerspectiveTurnState::DoingClairvoyant { player, .. } if player != me.player => html! { <p>{format!("Waiting for the Clairvoyant ({}) to do their work ...", player)}</p> },
-                PerspectiveTurnState::DoingClairvoyant { player, item_stack } => html! { {"todo"} },
+                PerspectiveTurnState::DoingClairvoyant { player: _, item_stack } => html! { <clairvoyant::Clairvoyant item_stack={item_stack.clone().unwrap()} /> },
                 &PerspectiveTurnState::UnsuccessfulDiplomat { diplomat, target, .. } if diplomat != me.player => html! { <p>{format!("Waiting for the Diplomat ({}) to confirm that {} does not have the requested item ...", diplomat, target)}</p> },
                 PerspectiveTurnState::UnsuccessfulDiplomat { target, inventory, .. } => html! { <><p>{format!("Since {} does not have the requested item, you may see their inventory: {:?}", target, inventory)}</p><DoneLookingBtn /></> },
             };

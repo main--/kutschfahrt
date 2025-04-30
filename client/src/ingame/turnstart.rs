@@ -120,7 +120,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
 
     html! {
         <>
-            <PlayerList selected={Some(players)} block_select={matches!(*movekind, WipMoveKind::Pass | WipMoveKind::UseClairvoyant)} />
+            <PlayerList selected={Some(players.clone())} block_select={matches!(*movekind, WipMoveKind::Pass | WipMoveKind::UseClairvoyant)} />
             {"Your items:"}
             <div class="itemlist">
                 {for perspective.you.items.iter().enumerate().map(|(idx, &i)| {
@@ -154,7 +154,12 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
 
             <p class="actiontext">{actiontext}</p>
 
-            <CommandButton text={"Submit"} command={upcoming_command} class={"actionsubmit"} />
+            <CommandButton text={"Submit"} command={upcoming_command} class={"actionsubmit"} onclick={Callback::from(move |_| {
+                movekind.set(WipMoveKind::None);
+                players.set(Vec::new());
+                item.set(None);
+                item_idx.set(None);
+            })} />
         </>
     }
 }

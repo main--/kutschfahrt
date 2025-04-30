@@ -612,13 +612,18 @@ impl State {
                             return Err(CommandError::WrongNumberOfClairvoyantItems);
                         }
 
-                        // TODO: make this deterministic
+                        // remove the selected items from the stack
+                        for i in &top_items {
+                            let idx = s.item_stack.iter().position(|x| x == i).ok_or(CommandError::InvalidItemError(*i))?;
+                            s.item_stack.swap_remove(idx);
+                        }
+
+                        // shuffle the remaining items
                         s.item_stack.shuffle(&mut rand::thread_rng());
 
-
-                        for (i, item) in top_items.into_iter().enumerate() {
-                            let pos = i + s.item_stack.iter().skip(i).position(|&x| x == item).ok_or(CommandError::InvalidItemError(item))?;
-                            s.item_stack.swap(i, pos);
+                        // and push the selected ones back on top
+                        for i in top_items.into_iter().rev() {
+                            s.item_stack.push(i);
                         }
 
                         TurnState::WaitingForQuickblink(next)

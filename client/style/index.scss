@@ -65,4 +65,25 @@ input {
         flex-direction: row;
         gap: .5em;
     }
+
+    .clairvoyant {
+        .items {
+            border: 1px solid black;
+            width: fit-content;
+            display: grid;
+            grid-template-columns: max-content max-content;
+            gap: .2em .5em;
+            margin-bottom: 1em;
+            .item {
+                display: contents;
+
+                &:nth-child(-n + 2) {
+                    .up {
+                        visibility: hidden;
+                    }
+                    font-weight: bold;
+                }
+            }
+        }
+    }
 }
