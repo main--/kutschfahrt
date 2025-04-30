@@ -108,15 +108,59 @@ impl State {
                     _ => return Err(CommandError::InvalidCommandInThisContext),
                 }
             }
-            TurnState::WaitingForQuickblink(p) => {
+            TurnState::WaitingForQuickblink(p) | TurnState::WaitingForEndTurn(p) => {
                 if actor != p {
                     return Err(CommandError::NotYourTurn);
                 }
 
+                let is_end_phase = matches!(self.turn, TurnState::WaitingForEndTurn(_));
+
+                // clairvoyant and diplomat can be issued either before or after the main action.
+                let next_turn_player = if is_end_phase {
+                    // when used in the end phase, they pass control to the next player.
+                    s.p.next_player(p)
+                } else {
+                    // when used in main phase (i.e. before the main action), they pass control back to the current player
+                    p
+                };
+                // there is no problem with chaining because the jobs are single-use
+
                 match c {
                     Command::Pass => {
+                        // no end phase (next_turn_player) for this because it would be redundant
                         TurnState::WaitingForQuickblink(s.p.next_player(p))
                     }
+                    Command::UseClairvoyant => {
+                        s.p.player_mut(p).use_job(Job::Clairvoyant)?;
+                        TurnState::DoingClairvoyant { clairvoyant: p, next: next_turn_player }
+                    }
+                    Command::UseDiplomat { target, item, return_item } => {
+                        if !s.p.players.contains_key(&target) || actor == target {
+                            return Err(CommandError::InvalidTargetPlayer);
+                        }
+
+                        s.p.player_mut(p).use_job(Job::Diplomat)?;
+                        let (actor_items, target_items) = s.p.player_pair_mut(actor, target);
+                        let _return_item_index = actor_items.items.iter().position(|&x| x == return_item).ok_or(CommandError::InvalidItemError(return_item))?;
+                        let stack_empty = s.item_stack.is_empty();
+                        let resolved_target_item = target_items.items.iter().copied().find(|&x| x == item || (stack_empty && (item == Item::Goblet && x == Item::BagGoblet) || (item == Item::Key && x == Item::BagKey)));
+                        drop((actor_items, target_items));
+
+                        match resolved_target_item {
+                            Some(target_item) => {
+                                let next_state = TurnState::WaitingForQuickblink(next_turn_player);
+                                perform_trade(s, target, target_item, actor, return_item, next_state)?
+                            }
+                            None => {
+                                TurnState::UnsuccessfulDiplomat { diplomat: actor, target }
+                            }
+                        }
+                    }
+                    _ if is_end_phase => return Err(CommandError::InvalidCommandInThisContext),
+                    // commands below this check are not valid in the end phase
+                    // intended behavior: 99% of the time you will skip end phase by passing.
+                    // but it's needed to give you an opportunity for end-of-turn clairvoyant and diplomat
+
                     Command::AnnounceVictory { mut teammates } => {
                         let actor_player = s.p.player(actor);
                         if actor_player.items.contains(&Item::BlackPearl) {
@@ -189,32 +233,6 @@ impl State {
                         }
                     }
 
-                    Command::UseClairvoyant => {
-                        s.p.player_mut(p).use_job(Job::Clairvoyant)?;
-                        TurnState::DoingClairvoyant { clairvoyant: p, next: p }
-                    }
-                    Command::UseDiplomat { target, item, return_item } => {
-                        if !s.p.players.contains_key(&target) || actor == target {
-                            return Err(CommandError::InvalidTargetPlayer);
-                        }
-
-                        s.p.player_mut(p).use_job(Job::Diplomat)?;
-                        let (actor_items, target_items) = s.p.player_pair_mut(actor, target);
-                        let _return_item_index = actor_items.items.iter().position(|&x| x == return_item).ok_or(CommandError::InvalidItemError(return_item))?;
-                        let stack_empty = s.item_stack.is_empty();
-                        let resolved_target_item = target_items.items.iter().copied().find(|&x| x == item || (stack_empty && (item == Item::Goblet && x == Item::BagGoblet) || (item == Item::Key && x == Item::BagKey)));
-                        drop((actor_items, target_items));
-
-                        match resolved_target_item {
-                            Some(target_item) => {
-                                let next_state = TurnState::WaitingForQuickblink(p); // after diplomat trade it's my turn again
-                                perform_trade(s, target, target_item, actor, return_item, next_state)?
-                            }
-                            None => {
-                                TurnState::UnsuccessfulDiplomat { diplomat: actor, target }
-                            }
-                        }
-                    }
                     _ => return Err(CommandError::InvalidCommandInThisContext),
                 }
             }
@@ -251,11 +269,10 @@ impl State {
                             let index = attacker_state.items.iter().position(|&i| i == item).ok_or(CommandError::InvalidItemError(item))?;
                             attacker_state.items.remove(index);
                             priest_state.items.push(item);
-                            let next_player = s.p.next_player(attacker);
                             if priest_state.items.len() > inventory_limit(s.p.players.len()) {
-                                TurnState::DonatingItem { donor: priest, followup: FollowupState::next_player(next_player) }
+                                TurnState::DonatingItem { donor: priest, followup: FollowupState::end_phase(attacker) }
                             } else {
-                                TurnState::WaitingForQuickblink(next_player)
+                                TurnState::WaitingForEndTurn(attacker)
                             }
                         }
                         Command::PayPriest { .. } => return Err(CommandError::NotYourTurn),
@@ -309,17 +326,16 @@ impl State {
                                     .chain(votes.values().map(|v| v.vote_value())).sum();
 
                                 if score == 0 {
-                                    let next_player = s.p.next_player(attacker);
                                     if let Some(drawn_item) = s.item_stack.pop() {
                                         let mut player_state = s.p.player_mut(attacker);
                                         player_state.items.push(drawn_item);
                                         if player_state.items.len() > inventory_limit(s.p.players.len()) {
-                                            TurnState::DonatingItem { donor: attacker, followup: FollowupState::next_player(next_player) }
+                                            TurnState::DonatingItem { donor: attacker, followup: FollowupState::end_phase(attacker) }
                                         } else {
-                                            TurnState::WaitingForQuickblink(next_player)
+                                            TurnState::WaitingForEndTurn(attacker)
                                         }
                                     } else {
-                                        TurnState::WaitingForQuickblink(next_player)
+                                        TurnState::WaitingForEndTurn(attacker)
                                     }
                                 } else {
                                     let winner = if score > 0 {
@@ -368,7 +384,7 @@ impl State {
                             match buff {
                                 // triggers that end the fight:
                                 BuffSource::Job(Job::Doctor) => {
-                                    TurnState::WaitingForQuickblink(s.p.next_player(attacker))
+                                    TurnState::WaitingForEndTurn(attacker)
                                 }
                                 BuffSource::Job(Job::PoisonMixer) => {
                                     let winner = match target {
@@ -429,9 +445,9 @@ impl State {
                     if actor != winner_player {
                         return Err(CommandError::NotYourTurn);
                     }
-                    let next_player = s.p.next_player(attacker);
+
                     match c {
-                        Command::DoneLookingAtThings if !steal_items => TurnState::WaitingForQuickblink(next_player),
+                        Command::DoneLookingAtThings if !steal_items => TurnState::WaitingForEndTurn(attacker),
                         Command::StealItem { item, give_back } if steal_items => {
                             let mut attacker_state = s.p.player_mut(attacker);
                             let mut defender_state = s.p.player_mut(defender);
@@ -464,9 +480,9 @@ impl State {
                             }
 
                             if attacker_state.items.len() > inventory_limit(s.p.players.len()) {
-                                TurnState::DonatingItem { donor: attacker, followup: FollowupState::next_player(next_player) }
+                                TurnState::DonatingItem { donor: attacker, followup: FollowupState::end_phase(attacker) }
                             } else {
-                                TurnState::WaitingForQuickblink(next_player)
+                                TurnState::WaitingForEndTurn(attacker)
                             }
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
@@ -474,7 +490,7 @@ impl State {
                 }
             }
             TurnState::TradePending { offerer, target, item } => {
-                let mut newstate = TurnState::WaitingForQuickblink(s.p.next_player(offerer));
+                let mut newstate = TurnState::WaitingForEndTurn(offerer);
                 match c {
                     _ if actor != target => return Err(CommandError::NotYourTurn),
                     Command::AcceptTrade { item: item2 } => {
@@ -686,6 +702,7 @@ impl State {
         use PerspectiveTurnState::*;
         let turn = match &self.turn {
             &TurnState::WaitingForQuickblink(player) => TurnStart { player },
+            &TurnState::WaitingForEndTurn(player) => TurnEndPhase { player },
             &TurnState::DoingClairvoyant { clairvoyant: c, .. } if c == p => DoingClairvoyant { player: c, item_stack: Some(self.game.item_stack.clone()) },
             &TurnState::DoingClairvoyant { clairvoyant: c, .. } => DoingClairvoyant { player: c, item_stack: None },
             &TurnState::UnsuccessfulDiplomat { diplomat , target } if diplomat == p => UnsuccessfulDiplomat { diplomat, target, inventory: Some(self.game.p.player(target).items.clone()) },
@@ -844,7 +861,7 @@ fn perform_trade(
 
         match try_resolve_trade_trigger(item, &mut s.item_stack, &mut offerer_state, &mut target_state, np) {
             Some(trigger) => {
-                let fus = FollowupState::TradeTriggers { offerer, target, item: item2, next_state };
+                let fus = FollowupState::TradeTriggers { offerer: target, target: offerer, item: item2, next_state };
                 match trigger {
                     Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer, target, next_state: fus, trigger },
                     Err(NeedDonation) => TurnState::DonatingItem { donor: offerer, followup: fus },

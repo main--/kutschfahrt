@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
 use serde::{Serialize, Deserialize};
 
 
@@ -80,6 +81,7 @@ pub struct PerspectivePlayer {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum PerspectiveTurnState {
     TurnStart { player: Player },
+    TurnEndPhase { player: Player },
     DoingClairvoyant { player: Player, item_stack: Option<Vec<Item>> },
     UnsuccessfulDiplomat { diplomat: Player, target: Player, inventory: Option<Vec<Item>> },
 
@@ -124,6 +126,29 @@ pub enum Item {
     Tome, // trigger: trade occupation
     CoatOfArmorOfTheLoge
 }
+impl Display for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Item::Key => "Key",
+            Item::Goblet => "Goblet",
+            Item::BagKey => "Bag (Key)",
+            Item::BagGoblet => "Bag (Goblet)",
+            Item::BlackPearl => "Black Pearl",
+            Item::Dagger => "Dagger",
+            Item::Gloves => "Gloves",
+            Item::PoisonRing => "Poison Ring",
+            Item::CastingKnives => "Casting Knives",
+            Item::Whip => "Whip",
+            Item::Priviledge => "Priviledge",
+            Item::Monocle => "Monocle",
+            Item::BrokenMirror => "Broken Mirror",
+            Item::Sextant => "Sextant",
+            Item::Coat => "Coat",
+            Item::Tome => "Tome",
+            Item::CoatOfArmorOfTheLoge => "Coat of Armor of the Loge",
+        })
+    }
+}
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Job {
     Thug,
@@ -164,6 +189,8 @@ pub enum Faction {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TurnState {
     WaitingForQuickblink(Player),
+    /// for end-of-turn clairvoyant and diplomat
+    WaitingForEndTurn(Player),
 
     // job actions are currently only possible at turn start
     DoingClairvoyant { clairvoyant: Player, next: Player },
@@ -200,8 +227,8 @@ pub enum FollowupState {
     },
 }
 impl FollowupState {
-    pub fn next_player(player: Player) -> Self {
-        FollowupState::State(Box::new(TurnState::WaitingForQuickblink(player)))
+    pub fn end_phase(player: Player) -> Self {
+        FollowupState::State(Box::new(TurnState::WaitingForEndTurn(player)))
     }
 }
 

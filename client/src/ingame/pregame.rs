@@ -10,8 +10,7 @@ pub struct WaitingForPlayersProps {
 }
 
 #[function_component(WaitingForPlayers)]
-pub fn waiting_for_players(props: &WaitingForPlayersProps) -> Html {
-    let WaitingForPlayersProps { players, you } = props.clone();
+pub fn waiting_for_players(WaitingForPlayersProps { players, you }: &WaitingForPlayersProps) -> Html {
     let cmd = use_context::<Commander>().unwrap();
     let cmd2 = cmd.clone();
     html! {
