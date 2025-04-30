@@ -3,7 +3,7 @@ use std::rc::Rc;
 use gloo_console::log;
 use gloo_events::EventListener;
 use wasm_bindgen::JsCast;
-use web_sys::{EventSource, HtmlInputElement, MessageEvent, Window};
+use web_sys::{EventSource, HtmlInputElement, MessageEvent};
 use yew::prelude::*;
 use web_protocol::{GameInfo, GameCommand, PerspectiveTurnState, Perspective};
 
@@ -23,8 +23,6 @@ pub struct Props {
 
 pub enum Msg {
     Refresh(GameInfo),
-    TypeCommand(String),
-    Submit,
 }
 
 impl Component for Ingame {
@@ -59,51 +57,66 @@ impl Component for Ingame {
             Msg::Refresh(info) => {
                 self.game_info = Some(info);
             }
-            Msg::TypeCommand(s) => {
-                self.command = s;
-            }
-            Msg::Submit => {
-                let path = format!("/api/game/{}", &self.game);
-                if let Ok(command) = serde_json::from_str::<serde_json::Value>(&self.command) {
-                    self.command = String::new();
-                    wasm_bindgen_futures::spawn_local(async move {
-                        super::post_json(&path, &command).await;
-                    });
-                }
-            }
         }
         true
     }
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let dev_mode = web_sys::window().and_then(|x| x.location().href().ok()).map_or(false, |x| x.ends_with("#dev"));
+    fn view(&self, _ctx: &Context<Self>) -> Html {
         html! {
             <div>
                 <ContextProvider<Commander> context={Commander { game: self.game.clone() }}>
                     {self.game_info.clone().map(|g| html! { <GameUi gamestate={g} /> }).into_iter().collect::<Html>()}
                 </ContextProvider<Commander>>
-                if dev_mode {
-                    <input
-                        value={self.command.clone()}
-                        oninput={ctx.link().callback(|e: InputEvent| { let input: HtmlInputElement = e.target_unchecked_into(); Msg::TypeCommand(input.value()) })}
-                        onkeypress={ctx.link().batch_callback(|e: KeyboardEvent| {
-                            if e.key() == "Enter" {
-                                vec![Msg::Submit]
-                            } else {
-                                vec![]
-                            }
-                        })}
-                    />
-                    <pre>
-                        {serde_json::to_string_pretty(&self.game_info).unwrap()}
-                    </pre>
-                }
+                <DevMode game_id={self.game.clone()} game_info={self.game_info.clone()} />
             </div>
         }
     }
 
     fn destroy(&mut self, _: &Context<Self>) {
         self.eventsrc.close();
+    }
+}
+
+#[derive(Properties, PartialEq)]
+struct DevModeProps {
+    game_id: String,
+    game_info: Option<GameInfo>,
+}
+#[function_component(DevMode)]
+fn dev_mode(DevModeProps { game_id, game_info }: &DevModeProps) -> Html {
+    let location = use_location();
+    let command = use_state_eq(|| String::new());
+    let oninput = {
+        let command = command.clone();
+        Callback::from(move |e: InputEvent| { let input: HtmlInputElement = e.target_unchecked_into(); command.set(input.value()); })
+    };
+
+    if !location.map_or(false, |x| x.hash() == "#dev") {
+        return html! {};
+    }
+
+    let game_id = game_id.clone();
+    html! {
+        <>
+            <input
+                value={(*command).clone()}
+                oninput={oninput}
+                onkeypress={Callback::from(move |e: KeyboardEvent| {
+                    if e.key() == "Enter" {
+                        let path = format!("/api/game/{}", game_id);
+                        if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&*command) {
+                            command.set(String::new());
+                            wasm_bindgen_futures::spawn_local(async move {
+                                super::post_json(&path, &cmd).await;
+                            });
+                        }
+                    }
+                })}
+            />
+            <pre>
+                {serde_json::to_string_pretty(&game_info).unwrap()}
+            </pre>
+        </>
     }
 }
 
@@ -124,6 +137,8 @@ impl Commander {
 
 mod utils;
 pub use utils::*;
+use yew_router::hooks::use_location;
+use yew_router::prelude::{BrowserLocation, Location};
 
 mod pregame;
 mod turnstart;
