@@ -627,6 +627,15 @@ impl State {
                 }
             }
         };
+
+        // skip end phase if the player had their job revealed already
+        // (in which case it's public information that the only button they have is End Turn)
+        if let &TurnState::WaitingForEndTurn(p) = &self.turn {
+            if self.game.p.player(p).job_is_visible {
+                self.turn = TurnState::WaitingForQuickblink(self.game.p.next_player(p));
+            }
+        }
+
         Ok(())
     }
 
