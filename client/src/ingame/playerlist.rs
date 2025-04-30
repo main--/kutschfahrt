@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use web_protocol::{Perspective, Player};
-use yew::{classes, function_component, html, use_context, Callback, Properties, UseStateHandle};
+use yew::{classes, function_component, html, use_context, Callback, Html, Properties, UseStateHandle};
 
 #[derive(Properties, PartialEq)]
 pub struct PlayerListProps {

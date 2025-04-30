@@ -5,6 +5,7 @@ use gloo_events::EventListener;
 use wasm_bindgen::JsCast;
 use web_sys::{EventSource, HtmlInputElement, MessageEvent};
 use yew::prelude::*;
+use yew_router::hooks::use_location;
 use web_protocol::{GameInfo, GameCommand, PerspectiveTurnState, Perspective};
 
 pub struct Ingame {
@@ -137,9 +138,6 @@ impl Commander {
 
 mod utils;
 pub use utils::*;
-use yew_router::hooks::use_location;
-use yew_router::prelude::{BrowserLocation, Location};
-
 mod pregame;
 mod turnstart;
 mod trading;

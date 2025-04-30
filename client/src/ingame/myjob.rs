@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use web_protocol::Perspective;
-use yew::{function_component, html, use_context, Properties};
+use yew::{function_component, html, use_context, Html, Properties};
 
 #[derive(Properties, PartialEq)]
 pub struct MyJobProps {

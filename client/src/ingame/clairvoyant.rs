@@ -1,5 +1,5 @@
 use web_protocol::{Command, Item};
-use yew::{function_component, html, use_state, Callback, Properties};
+use yew::{function_component, html, use_state, Callback, Html, Properties};
 
 use crate::ingame::CommandButton;
 

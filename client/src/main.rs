@@ -48,9 +48,9 @@ async fn fetch_json<T: serde::de::DeserializeOwned>(path: &str) -> T {
 }
 async fn post_json<T: serde::Serialize>(path: &str, body: &T) {
     let body = serde_json::to_string(body).unwrap();
-    let mut opts = web_sys::RequestInit::new();
-    opts.method("POST");
-    opts.body(Some(&JsValue::from(&body)));
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&JsValue::from(&body));
     let request = web_sys::Request::new_with_str_and_init(path, &opts).unwrap();
     let resp = JsFuture::from(window().fetch_with_request(&request)).await.unwrap();
 
@@ -65,7 +65,7 @@ async fn post_json<T: serde::Serialize>(path: &str, body: &T) {
 fn view_game_item(game: String) -> Html {
     html! { <li><Link to={AppRoute::Game { id: game.clone() }}>{game}</Link></li> }
 }
-fn view_content(r: &AppRoute, my_games: Vec<String>) -> Html {
+fn view_content(r: AppRoute, my_games: Vec<String>) -> Html {
     match r {
         AppRoute::Home => html! {
             <div>
@@ -146,7 +146,7 @@ impl Component for App {
                 <div class="container is-centered">
                     {if logged_in { html! {
                         <Switch<AppRoute>
-                            render={Switch::render(move |r| view_content(r, my_games.clone()))}
+                            render={move |r| view_content(r, my_games.clone())}
                         />
                     } } else { html! {
                         {"Please log in."}
@@ -159,6 +159,6 @@ impl Component for App {
 
 fn main() {
     set_panic_hook();
-    yew::start_app::<App>();
+    yew::Renderer::<App>::new().render();
 }
 

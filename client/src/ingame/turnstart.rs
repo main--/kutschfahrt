@@ -33,14 +33,14 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
     let perspective = use_context::<Rc<Perspective>>().unwrap();
     let movekind = use_state(|| WipMoveKind::None);
     let players = use_state(|| Vec::<Player>::new());
-    let item = ItemWithIndex::default();
-    let diplomat_item = use_state(|| None);
+    let item = ItemWithIndex::use_new();
+    let diplomat_item = use_state(|| DIPLOMAT_ITEM_LIST[0]);
     let action_btn = |kind: WipMoveKind, text: &'static str, has_player: HasPlayer, has_item: bool| -> Html {
         let movekind = movekind.clone();
         let players = players.clone();
         let item = item.clone();
         let active = if *movekind == kind { Some("is-dark") } else { None };
-        html! { <button class={classes!("button", "actionchoice", active)} onclick={Callback::once(move |_| {
+        html! { <button class={classes!("button", "actionchoice", active)} onclick={Callback::from(move |_| {
             if *movekind == kind {
                 movekind.set(WipMoveKind::None);
             } else {
@@ -81,7 +81,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
         (WipMoveKind::OfferTrade, players, Some(item), _) if players.len() == 1 => Command::OfferTrade { target: players[0], item },
         (WipMoveKind::Attack, players, _, _) if players.len() == 1 => Command::InitiateAttack { player: players[0] },
         (WipMoveKind::UseClairvoyant, _, _, _) if players.len() == 0 => Command::UseClairvoyant,
-        (WipMoveKind::UseDiplomat, players, Some(return_item), Some(item)) if players.len() == 1 => Command::UseDiplomat { target: players[0], item, return_item },
+        (WipMoveKind::UseDiplomat, players, Some(return_item), item) if players.len() == 1 => Command::UseDiplomat { target: players[0], item, return_item },
         _ => return None,
     }))();
 
@@ -111,7 +111,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
         WipMoveKind::UseClairvoyant => Cow::from("You are going to use your job ability (Clairvoyant)."),
         WipMoveKind::UseDiplomat => Cow::from(format!(
             "You are going to use your job ability (Diplomat). You are demanding a {} from {} in exchange for a {}.",
-            diplomat_item.map(|x| x.to_string()).unwrap_or("?".to_owned()),
+            diplomat_item.to_string(),
             players.get(0).map(|p| p.to_string()).unwrap_or("?".to_owned()),
             item.item().map(|x| x.to_string()).unwrap_or("?".to_owned())
         )),
@@ -125,7 +125,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
 
             if *movekind == WipMoveKind::UseDiplomat {
                 <div class="choose-diplomat">
-                    {"Ask for: "}<SimpleDropdown<Item> options={DIPLOMAT_ITEM_LIST.to_vec()} on_change={Callback::from(move |x| diplomat_item.set(Some(x)))} />
+                    {"Ask for: "}<SimpleDropdown<Item> options={DIPLOMAT_ITEM_LIST.to_vec()} on_change={Callback::from(move |x| diplomat_item.set(x))} />
                 </div>
             }
             <div class="actionlist">

@@ -1,16 +1,15 @@
 use std::rc::Rc;
 
 use web_protocol::{Item, Perspective};
-use yew::{classes, function_component, html, use_context, use_state, Callback, Properties, UseStateHandle};
+use yew::{classes, function_component, hook, html, use_context, use_state, Callback, Html, Properties, UseStateHandle};
 
 #[derive(PartialEq, Clone)]
 pub struct ItemWithIndex(UseStateHandle<Option<(Item, usize)>>);
-impl Default for ItemWithIndex {
-    fn default() -> Self {
+impl ItemWithIndex {
+    #[hook]
+    pub fn use_new() -> ItemWithIndex {
         ItemWithIndex(use_state(|| None))
     }
-}
-impl ItemWithIndex {
     pub fn reset(&self) {
         self.0.set(None);
     }
@@ -51,7 +50,7 @@ pub fn playerlist(ItemListProps { selection }: &ItemListProps) -> Html {
                                 selection.set(i, idx);
                             }
                         }
-                    })}>{i}</div> }
+                    })}>{i.to_string()}</div> }
                 })}
             </div>
         </>
