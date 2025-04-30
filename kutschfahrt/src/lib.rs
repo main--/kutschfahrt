@@ -693,7 +693,8 @@ impl State {
 
         let (factions, _) = factions.partial_shuffle(rng, players.len());
 
-        let (player_jobs, job_stack) = jobs.partial_shuffle(rng, players.len());
+        jobs.shuffle(rng);
+        let (player_jobs, job_stack) = jobs.split_at_mut(players.len());
 
         State {
             game: GameState {

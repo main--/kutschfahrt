@@ -24,7 +24,9 @@ pub fn waiting_for_players(WaitingForPlayersProps { players, you }: &WaitingForP
                 Some(_) => html! {
                     <>
                         <button class="button" onclick={Callback::once(move |_| cmd.cmd(GameCommand::LeaveGame))}>{"Leave"}</button>
-                        <button class="button" onclick={Callback::once(move |_| cmd2.cmd(GameCommand::StartGame))}>{"Start Game"}</button>
+                        if players.len() >= 3 {
+                            <button class="button" onclick={Callback::once(move |_| cmd2.cmd(GameCommand::StartGame))}>{"Start Game"}</button>
+                        }
                     </>
                 },
             }}
