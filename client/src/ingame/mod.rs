@@ -3,7 +3,7 @@ use std::rc::Rc;
 use gloo_console::log;
 use gloo_events::EventListener;
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlInputElement, EventSource, MessageEvent};
+use web_sys::{EventSource, HtmlInputElement, MessageEvent, Window};
 use yew::prelude::*;
 use web_protocol::{GameInfo, GameCommand, PerspectiveTurnState, Perspective};
 
@@ -76,25 +76,28 @@ impl Component for Ingame {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+        let dev_mode = web_sys::window().and_then(|x| x.location().href().ok()).map_or(false, |x| x.ends_with("#dev"));
         html! {
             <div>
                 <ContextProvider<Commander> context={Commander { game: self.game.clone() }}>
                     {self.game_info.clone().map(|g| html! { <GameUi gamestate={g} /> }).into_iter().collect::<Html>()}
                 </ContextProvider<Commander>>
-                <input
-                    value={self.command.clone()}
-                    oninput={ctx.link().callback(|e: InputEvent| { let input: HtmlInputElement = e.target_unchecked_into(); Msg::TypeCommand(input.value()) })}
-                    onkeypress={ctx.link().batch_callback(|e: KeyboardEvent| {
-                        if e.key() == "Enter" {
-                            vec![Msg::Submit]
-                        } else {
-                            vec![]
-                        }
-                    })}
-                />
-                <pre>
-                    {serde_json::to_string_pretty(&self.game_info).unwrap()}
-                </pre>
+                if dev_mode {
+                    <input
+                        value={self.command.clone()}
+                        oninput={ctx.link().callback(|e: InputEvent| { let input: HtmlInputElement = e.target_unchecked_into(); Msg::TypeCommand(input.value()) })}
+                        onkeypress={ctx.link().batch_callback(|e: KeyboardEvent| {
+                            if e.key() == "Enter" {
+                                vec![Msg::Submit]
+                            } else {
+                                vec![]
+                            }
+                        })}
+                    />
+                    <pre>
+                        {serde_json::to_string_pretty(&self.game_info).unwrap()}
+                    </pre>
+                }
             </div>
         }
     }
