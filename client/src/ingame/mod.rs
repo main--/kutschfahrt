@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use gloo_console::log;
 use gloo_events::EventListener;
-use playerlist::PlayerList;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlInputElement, EventSource, MessageEvent};
 use yew::prelude::*;
@@ -130,6 +129,8 @@ mod trade_trigger;
 mod donation;
 mod attacking;
 mod playerlist;
+mod itemlist;
+mod myjob;
 mod clairvoyant;
 
 #[derive(Properties, PartialEq)]
@@ -172,7 +173,9 @@ fn game_ui(props: &GameUiProps) -> Html {
                 <div class="hud">
                     <ContextProvider<Rc<Perspective>> context={Rc::new(p.clone())}>
                         if !hide_playerlist {
-                            <PlayerList />
+                            <playerlist::PlayerList />
+                            <myjob::MyJob />
+                            <itemlist::ItemList />
                         }
                         {body}
                     </ContextProvider<Rc<Perspective>>>

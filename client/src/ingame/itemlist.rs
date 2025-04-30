@@ -1,0 +1,59 @@
+use std::rc::Rc;
+
+use web_protocol::{Item, Perspective};
+use yew::{classes, function_component, html, use_context, use_state, Callback, Properties, UseStateHandle};
+
+#[derive(PartialEq, Clone)]
+pub struct ItemWithIndex(UseStateHandle<Option<(Item, usize)>>);
+impl Default for ItemWithIndex {
+    fn default() -> Self {
+        ItemWithIndex(use_state(|| None))
+    }
+}
+impl ItemWithIndex {
+    pub fn reset(&self) {
+        self.0.set(None);
+    }
+    pub fn set(&self, item: Item, index: usize) {
+        self.0.set(Some((item, index)));
+    }
+    pub fn item(&self) -> Option<Item> {
+        self.0.map(|x| x.0)
+    }
+    pub fn index(&self) -> Option<usize> {
+        self.0.map(|x| x.1)
+    }
+}
+
+#[derive(Properties, PartialEq)]
+pub struct ItemListProps {
+    #[prop_or_default]
+    pub selection: Option<ItemWithIndex>,
+}
+#[function_component(ItemList)]
+pub fn playerlist(ItemListProps { selection }: &ItemListProps) -> Html {
+    let perspective = use_context::<Rc<Perspective>>().unwrap();
+    html! {
+        <>
+            {"Your items:"}
+            <div class="itemlist">
+                {for perspective.you.items.iter().enumerate().map(|(idx, &i)| {
+                    let is_selected = selection.as_ref().map_or(false, |x| x.index() == Some(idx));
+                    let selected = if is_selected { Some("selected") } else { None };
+                    let can_select = selected.is_some();
+                    let selectable = if can_select { Some("selectable") } else { None };
+                    let selection = selection.clone();
+                    html! { <div class={classes!("entry", selected, selectable)} onclick={Callback::from(move |_| {
+                        if let Some(selection) = &selection {
+                            if is_selected {
+                                selection.reset();
+                            } else {
+                                selection.set(i, idx);
+                            }
+                        }
+                    })}>{i}</div> }
+                })}
+            </div>
+        </>
+    }
+}

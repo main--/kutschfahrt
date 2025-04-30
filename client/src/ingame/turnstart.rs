@@ -4,6 +4,8 @@ use std::rc::Rc;
 use web_protocol::{Command, Item, Job, Perspective, Player};
 use yew::prelude::*;
 
+use crate::ingame::itemlist::{ItemList, ItemWithIndex};
+use crate::ingame::myjob::MyJob;
 use crate::ingame::playerlist::PlayerList;
 use crate::ingame::{CommandButton, SimpleDropdown};
 
@@ -31,14 +33,12 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
     let perspective = use_context::<Rc<Perspective>>().unwrap();
     let movekind = use_state(|| WipMoveKind::None);
     let players = use_state(|| Vec::<Player>::new());
-    let item = use_state(|| None);
-    let item_idx = use_state(|| None);
+    let item = ItemWithIndex::default();
     let diplomat_item = use_state(|| None);
     let action_btn = |kind: WipMoveKind, text: &'static str, has_player: HasPlayer, has_item: bool| -> Html {
         let movekind = movekind.clone();
         let players = players.clone();
         let item = item.clone();
-        let item_idx = item_idx.clone();
         let active = if *movekind == kind { Some("is-dark") } else { None };
         html! { <button class={classes!("button", "actionchoice", active)} onclick={Callback::once(move |_| {
             if *movekind == kind {
@@ -51,8 +51,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
                     HasPlayer::Many => (),
                 }
                 if !has_item {
-                    item.set(None);
-                    item_idx.set(None);
+                    item.reset();
                 }
             }
         })}>{text}</button> }
@@ -76,7 +75,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
         buttons.push(action_btn(WipMoveKind::UseDiplomat, "Use Diplomat", HasPlayer::One, true));
     }
 
-    let upcoming_command = (|| Some(match (*movekind, &*players, *item, *diplomat_item) {
+    let upcoming_command = (|| Some(match (*movekind, &*players, item.item(), *diplomat_item) {
         (WipMoveKind::Pass, _, _, _) => Command::Pass,
         (WipMoveKind::AnnounceVictory, players, _, _) => Command::AnnounceVictory { teammates: players.clone() },
         (WipMoveKind::OfferTrade, players, Some(item), _) if players.len() == 1 => Command::OfferTrade { target: players[0], item },
@@ -107,42 +106,23 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
             }
             Cow::from(format!("You are going to announce the victory of the {:?} {}.", perspective.you.faction, text))
         }
-        WipMoveKind::OfferTrade => Cow::from(format!("You offer to trade a {} to {}.", item.map(|x| x.to_string()).unwrap_or("?".to_owned()), players.get(0).map(|p| p.to_string()).unwrap_or("?".to_owned()))),
+        WipMoveKind::OfferTrade => Cow::from(format!("You offer to trade a {} to {}.", item.item().map(|x| x.to_string()).unwrap_or("?".to_owned()), players.get(0).map(|p| p.to_string()).unwrap_or("?".to_owned()))),
         WipMoveKind::Attack => Cow::from(format!("You attack {}.", players.get(0).map(|p| p.to_string()).unwrap_or("?".to_owned()))),
         WipMoveKind::UseClairvoyant => Cow::from("You are going to use your job ability (Clairvoyant)."),
         WipMoveKind::UseDiplomat => Cow::from(format!(
             "You are going to use your job ability (Diplomat). You are demanding a {} from {} in exchange for a {}.",
             diplomat_item.map(|x| x.to_string()).unwrap_or("?".to_owned()),
             players.get(0).map(|p| p.to_string()).unwrap_or("?".to_owned()),
-            item.map(|x| x.to_string()).unwrap_or("?".to_owned())
+            item.item().map(|x| x.to_string()).unwrap_or("?".to_owned())
         )),
     };
 
     html! {
         <>
             <PlayerList selected={Some(players.clone())} block_select={matches!(*movekind, WipMoveKind::Pass | WipMoveKind::UseClairvoyant)} />
-            {"Your items:"}
-            <div class="itemlist">
-                {for perspective.you.items.iter().enumerate().map(|(idx, &i)| {
-                    let is_selected = *item_idx == Some(idx);
-                    let selected = if is_selected { Some("selected") } else { None };
-                    let can_select = match *movekind { WipMoveKind::OfferTrade | WipMoveKind::UseDiplomat | WipMoveKind::None => true, _ => false };
-                    let selectable = if can_select { Some("selectable") } else { None };
-                    let item = item.clone();
-                    let item_idx = item_idx.clone();
-                    html! { <div class={classes!("entry", selected, selectable)} onclick={Callback::from(move |_| {
-                        if can_select {
-                            if is_selected {
-                                item.set(None);
-                                item_idx.set(None);
-                            } else {
-                                item.set(Some(i));
-                                item_idx.set(Some(idx));
-                            }
-                        }
-                    })}>{format!("{:?}", i)}</div> }
-                })}
-            </div>
+            <MyJob />
+            <ItemList selection={match *movekind { WipMoveKind::OfferTrade | WipMoveKind::UseDiplomat | WipMoveKind::None => Some(item.clone()), _ => None }} />
+
             if *movekind == WipMoveKind::UseDiplomat {
                 <div class="choose-diplomat">
                     {"Ask for: "}<SimpleDropdown<Item> options={DIPLOMAT_ITEM_LIST.to_vec()} on_change={Callback::from(move |x| diplomat_item.set(Some(x)))} />
@@ -157,8 +137,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
             <CommandButton text={"Submit"} command={upcoming_command} class={"actionsubmit"} onclick={Callback::from(move |_| {
                 movekind.set(WipMoveKind::None);
                 players.set(Vec::new());
-                item.set(None);
-                item_idx.set(None);
+                item.reset();
             })} />
         </>
     }
