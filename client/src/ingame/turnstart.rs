@@ -22,9 +22,10 @@ enum WipMoveKind {
 pub struct MyTurnStartProps {
     pub is_turn_end: bool,
     pub my_job: Job,
+    pub job_used: bool,
 }
 #[function_component(MyTurnStart)]
-pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job }: &MyTurnStartProps) -> Html {
+pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurnStartProps) -> Html {
     enum HasPlayer { No, One, Many }
     let perspective = use_context::<Rc<Perspective>>().unwrap();
     let movekind = use_state(|| WipMoveKind::None);
@@ -64,10 +65,10 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job }: &MyTurnStartProps
             action_btn(WipMoveKind::Pass, "Pass", HasPlayer::No, false),
         ]);
     };
-    if *my_job == Job::Clairvoyant {
+    if *my_job == Job::Clairvoyant && !job_used {
         buttons.push(action_btn(WipMoveKind::UseClairvoyant, "Use Clairvoyant", HasPlayer::No, false));
     }
-    if *my_job == Job::Diplomat {
+    if *my_job == Job::Diplomat && !job_used {
         buttons.push(action_btn(WipMoveKind::UseDiplomat, "Use Diplomat", HasPlayer::One, true));
     }
 
