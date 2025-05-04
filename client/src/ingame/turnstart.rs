@@ -14,6 +14,7 @@ enum WipMoveKind {
     None,
     Pass,
     AnnounceVictory,
+    LogeVictory,
     OfferTrade,
     Attack,
 
@@ -75,8 +76,14 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
         buttons.push(action_btn(WipMoveKind::UseDiplomat, "Use Diplomat", HasPlayer::One, true));
     }
 
+    let is_victory_item = |&&x: &&Item| x == Item::Key || x == Item::Goblet || ((perspective.item_stack == 0) && (x == Item::BagKey || x == Item::BagGoblet));
+    if perspective.you.items.contains(&Item::CoatOfArmorOfTheLoge) && perspective.you.items.iter().filter(is_victory_item).count() >= 3 {
+        buttons.push(action_btn(WipMoveKind::LogeVictory, "Announce Sole Victory (Loge)", HasPlayer::No, false));
+    }
+
     let upcoming_command = (|| Some(match (*movekind, &*players, item.item(), *diplomat_item) {
         (WipMoveKind::Pass, _, _, _) => Command::Pass,
+        (WipMoveKind::LogeVictory, _, _, _) => Command::AnnounceVictory { flavor: VictoryFlavor::Loge },
         (WipMoveKind::AnnounceVictory, players, _, _) => Command::AnnounceVictory { flavor: VictoryFlavor::Normal { teammates: players.clone() } },
         (WipMoveKind::OfferTrade, players, Some(item), _) if players.len() == 1 => Command::OfferTrade { target: players[0], item },
         (WipMoveKind::Attack, players, _, _) if players.len() == 1 => Command::InitiateAttack { player: players[0] },
@@ -88,6 +95,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
     let actiontext = match *movekind {
         WipMoveKind::None => Cow::from(""),
         WipMoveKind::Pass => Cow::from("You are going to pass."),
+        WipMoveKind::LogeVictory => Cow::from("You are going to use the Coat of Arms of the Loge to win alone."),
         WipMoveKind::AnnounceVictory => {
             let mut text = String::new();
             if players.len() == 0 {
