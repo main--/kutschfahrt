@@ -296,6 +296,45 @@ fn victory_black_pearl() {
 }
 
 #[test]
+fn victory_loge_good() {
+    let mut s = teststate();
+    s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Goblet, Item::Key, Item::CoatOfArmorOfTheLoge]);
+    s.apply_command(Player::Sarah, Command::AnnounceVictory { flavor: VictoryFlavor::Loge }).unwrap();
+    assert_eq!(s.turn, TurnState::GameOver { winner: WinningFaction::Traitor(Player::Sarah) });
+}
+
+#[test]
+fn victory_loge_good2() {
+    let mut s = teststate();
+    s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Goblet, Item::BagKey, Item::CoatOfArmorOfTheLoge]);
+    s.game.item_stack.clear();
+    s.apply_command(Player::Sarah, Command::AnnounceVictory { flavor: VictoryFlavor::Loge }).unwrap();
+    assert_eq!(s.turn, TurnState::GameOver { winner: WinningFaction::Traitor(Player::Sarah) });
+}
+
+#[test]
+fn victory_loge_bad() {
+    let mut s = teststate();
+    s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Goblet, Item::CoatOfArmorOfTheLoge]);
+    assert_eq!(s.apply_command(Player::Sarah, Command::AnnounceVictory { flavor: VictoryFlavor::Loge }), Err(CommandError::InvalidLogeVictory));
+}
+
+#[test]
+fn victory_loge_bad2() {
+    let mut s = teststate();
+    s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Goblet, Item::Key]);
+    assert_eq!(s.apply_command(Player::Sarah, Command::AnnounceVictory { flavor: VictoryFlavor::Loge }), Err(CommandError::InvalidLogeVictory));
+}
+
+#[test]
+fn victory_loge_bad3() {
+    let mut s = teststate();
+    s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Goblet, Item::BagKey, Item::CoatOfArmorOfTheLoge]);
+    assert_eq!(s.apply_command(Player::Sarah, Command::AnnounceVictory { flavor: VictoryFlavor::Loge }), Err(CommandError::InvalidLogeVictory));
+}
+
+
+#[test]
 fn attack_tie() {
     let mut s = teststate();
     s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Zacharias }).unwrap();

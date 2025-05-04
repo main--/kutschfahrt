@@ -61,7 +61,7 @@ pub enum CommandError {
     CantPoisonMixYourself,
     #[error("Clairvoyant needs to select exactly two items (unless the stack is almost empty)")]
     WrongNumberOfClairvoyantItems,
-    #[error("Solo victory requires at least 3 (mixed) victory items")]
+    #[error("Solo victory requires at least 3 (mixed) victory items (and coat of arms of the loge)")]
     InvalidLogeVictory,
 }
 
@@ -199,7 +199,7 @@ impl State {
                         victory &= total_victory_items >= 3;
 
                         let winner = if loge {
-                            if !victory {
+                            if !victory || !s.p.player(actor).items.contains(&Item::CoatOfArmorOfTheLoge) {
                                 return Err(CommandError::InvalidLogeVictory);
                             }
                             WinningFaction::Traitor(actor)
