@@ -71,6 +71,7 @@ fn trade_bag_valid() {
     let mut s = teststate();
     s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::BagKey }).unwrap();
     s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
     assert!(s.game.p.player(Player::Sarah).items.contains(&Item::PoisonRing));
     assert!(!s.game.p.player(Player::Sarah).items.contains(&Item::BagKey));
@@ -87,6 +88,7 @@ fn trade_blackpearl_no_reject() {
     s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::BlackPearl }).unwrap();
     assert_eq!(s.apply_command(Player::Marie, Command::RejectTrade), Err(CommandError::MustAccept));
     s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
     assert!(s.game.p.player(Player::Sarah).items.contains(&Item::PoisonRing));
     assert!(!s.game.p.player(Player::Sarah).items.contains(&Item::BlackPearl));
@@ -102,6 +104,7 @@ fn trade_brokenmirror_no_reject() {
     s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::BrokenMirror }).unwrap();
     assert_eq!(s.apply_command(Player::Marie, Command::RejectTrade), Err(CommandError::MustAccept));
     s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
     assert!(s.game.p.player(Player::Sarah).items.contains(&Item::PoisonRing));
     assert!(!s.game.p.player(Player::Sarah).items.contains(&Item::BrokenMirror));
@@ -119,6 +122,7 @@ fn trade_monocle() {
     assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
     assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
     s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
 }
 
@@ -129,9 +133,10 @@ fn trade_monocle_backwards() {
     s.turn = TurnState::WaitingForQuickblink(Player::Marie);
     s.apply_command(Player::Marie, Command::OfferTrade { target: Player::Sarah, item: Item::PoisonRing }).unwrap();
     s.apply_command(Player::Sarah, Command::AcceptTrade { item: Item::Monocle }).unwrap();
-    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
-    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
+    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
+    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
     s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
+    s.apply_command(Player::Marie, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Zacharias));
 }
 
@@ -145,9 +150,10 @@ fn trade_monocle_priviledge() {
     assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
     assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
     s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
-    assert_eq!(s.perspective(Player::Marie).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Priviledge { items: Some(vec![Item::BagKey, Item::Priviledge]) } });
-    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Priviledge { items: None } });
+    assert_eq!(s.perspective(Player::Marie).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Priviledge { items: Some(vec![Item::BagKey, Item::Priviledge]) } });
+    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Priviledge { items: None } });
     s.apply_command(Player::Marie, Command::DoneLookingAtThings).unwrap();
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
 }
 
@@ -160,9 +166,11 @@ fn trade_monocle_with_bag_causing_donation() {
     s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::BagGoblet }).unwrap();
     s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::Monocle }).unwrap();
     s.apply_command(Player::Sarah, Command::DonateItem { target: Player::Zacharias, item: Item::Key }).unwrap();
-    assert_eq!(s.perspective(Player::Marie).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
-    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
+    assert_eq!(s.perspective(Player::Marie).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
+    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
     s.apply_command(Player::Marie, Command::DoneLookingAtThings).unwrap();
+    assert_eq!(s.turn, TurnState::WaitingForEndTurn(Player::Sarah));
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
 }
 
@@ -175,6 +183,7 @@ fn trade_priviledge() {
     assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Priviledge { items: Some(vec![Item::Priviledge]) } });
     assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Priviledge { items: None } });
     s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
 }
 
@@ -191,6 +200,8 @@ fn trade_tome() {
 
     assert_eq!(s.game.p.player(Player::Sarah).job, Job::Thug);
     assert_eq!(s.game.p.player(Player::Marie).job, Job::Duelist);
+
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
 
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
 }
@@ -213,6 +224,7 @@ fn trade_sextant() {
     assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::PoisonRing, Item::Gloves]);
     assert_eq!(s.game.p.player(Player::Gundla).items, vec![Item::BagKey]);
     assert_eq!(s.game.p.player(Player::Marie).items, vec![Item::BagGoblet]);
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
 }
 
@@ -229,6 +241,7 @@ fn trade_coat() {
     s.apply_command(Player::Sarah, Command::PickNewJob { job: Job::Doctor }).unwrap();
     assert_eq!(s.game.p.player(Player::Sarah).job, Job::Doctor);
     assert!(!s.game.p.player(Player::Sarah).job_is_visible);
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
 }
 
@@ -236,16 +249,16 @@ fn trade_coat() {
 fn victory_solo_bad() {
     let mut s = teststate();
     s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Key]);
-    s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: Vec::new() }).unwrap();
-    assert_eq!(s.turn, TurnState::GameOver { winner: Faction::Brotherhood });
+    s.apply_command(Player::Sarah, Command::AnnounceVictory { flavor: VictoryFlavor::Normal { teammates: Vec::new() } }).unwrap();
+    assert_eq!(s.turn, TurnState::GameOver { winner: WinningFaction::Normal(Faction::Brotherhood) });
 }
 
 #[test]
 fn victory_solo_good() {
     let mut s = teststate();
     s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Key, Item::Key]);
-    s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: Vec::new() }).unwrap();
-    assert_eq!(s.turn, TurnState::GameOver { winner: Faction::Order });
+    s.apply_command(Player::Sarah, Command::AnnounceVictory { flavor: VictoryFlavor::Normal { teammates: Vec::new() } }).unwrap();
+    assert_eq!(s.turn, TurnState::GameOver { winner: WinningFaction::Normal(Faction::Order) });
 }
 
 #[test]
@@ -253,8 +266,8 @@ fn victory_team_bad() {
     let mut s = teststate();
     s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key]);
     s.game.p.player_mut(Player::Gundla).items.extend_from_slice(&[Item::Key, Item::Key]);
-    s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: vec![Player::Gundla] }).unwrap();
-    assert_eq!(s.turn, TurnState::GameOver { winner: Faction::Brotherhood });
+    s.apply_command(Player::Sarah, Command::AnnounceVictory { flavor: VictoryFlavor::Normal { teammates: vec![Player::Gundla] } }).unwrap();
+    assert_eq!(s.turn, TurnState::GameOver { winner: WinningFaction::Normal(Faction::Brotherhood) });
 }
 
 #[test]
@@ -262,8 +275,8 @@ fn victory_team_bad2() {
     let mut s = teststate();
     s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key]);
     s.game.p.player_mut(Player::Marie).items.extend_from_slice(&[Item::Key]);
-    s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: vec![Player::Marie] }).unwrap();
-    assert_eq!(s.turn, TurnState::GameOver { winner: Faction::Brotherhood });
+    s.apply_command(Player::Sarah, Command::AnnounceVictory { flavor: VictoryFlavor::Normal { teammates: vec![Player::Marie] } }).unwrap();
+    assert_eq!(s.turn, TurnState::GameOver { winner: WinningFaction::Normal(Faction::Brotherhood) });
 }
 
 #[test]
@@ -271,15 +284,15 @@ fn victory_team_good() {
     let mut s = teststate();
     s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key]);
     s.game.p.player_mut(Player::Marie).items.extend_from_slice(&[Item::Key, Item::Key]);
-    s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: vec![Player::Marie] }).unwrap();
-    assert_eq!(s.turn, TurnState::GameOver { winner: Faction::Order });
+    s.apply_command(Player::Sarah, Command::AnnounceVictory { flavor: VictoryFlavor::Normal { teammates: vec![Player::Marie] } }).unwrap();
+    assert_eq!(s.turn, TurnState::GameOver { winner: WinningFaction::Normal(Faction::Order) });
 }
 
 #[test]
 fn victory_black_pearl() {
     let mut s = teststate();
     s.game.p.player_mut(Player::Sarah).items.extend_from_slice(&[Item::Key, Item::Key, Item::Key, Item::BlackPearl]);
-    assert_eq!(s.apply_command(Player::Sarah, Command::AnnounceVictory { teammates: Vec::new() }), Err(CommandError::BlackPearl));
+    assert_eq!(s.apply_command(Player::Sarah, Command::AnnounceVictory { flavor: VictoryFlavor::Normal { teammates: Vec::new() } }), Err(CommandError::BlackPearl));
 }
 
 #[test]
@@ -303,6 +316,7 @@ fn attack_tie() {
     s.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None, target: None }).unwrap();
 
     assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::BagKey, Item::Dagger]);
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
 }
 
@@ -489,6 +503,7 @@ fn attack_priest() {
 
     s.apply_command(Player::Sarah, Command::PayPriest { item: Item::Coat }).unwrap();
 
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
     assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::BagKey]);
     assert_eq!(s.game.p.player(Player::Zacharias).items, vec![Item::Gloves, Item::Coat]);

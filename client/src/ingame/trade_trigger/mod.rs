@@ -6,7 +6,6 @@ use super::DoneLookingBtn;
 
 #[derive(Properties, PartialEq)]
 pub struct TradeTriggerProps {
-    pub is_first_item: bool,
     pub offerer: Player,
     pub target: Player,
     pub trigger: PerspectiveTradeTriggerState,
@@ -14,9 +13,9 @@ pub struct TradeTriggerProps {
 
 #[function_component(TradeTrigger)]
 pub fn trade_trigger(props: &TradeTriggerProps) -> Html {
-    let &TradeTriggerProps { is_first_item, offerer, target, ref trigger } = props;
+    let &TradeTriggerProps { offerer, target, ref trigger } = props;
 
-    let (relevant_player, other_player) = if is_first_item { (offerer, target) } else { (target, offerer) };
+    let (relevant_player, other_player) = (offerer, target);
 
     match trigger {
         PerspectiveTradeTriggerState::Priviledge { items: None } => html! { <p>{format!("Waiting for {} to look at {}'s items ...", relevant_player, other_player)}</p> },
@@ -25,7 +24,7 @@ pub fn trade_trigger(props: &TradeTriggerProps) -> Html {
         PerspectiveTradeTriggerState::Monocle { faction: Some(faction) } => html! { <><p>{format!("You see that {} is a member of the {:?}.", other_player, faction)}</p><DoneLookingBtn /></> },
         PerspectiveTradeTriggerState::Coat { available_jobs: None } => html! { <p>{format!("Waiting for {} to pick a new job ...", relevant_player)}</p> },
         PerspectiveTradeTriggerState::Coat { available_jobs: Some(jobs) } => html! { <coat::ResolveCoat jobs={jobs.clone()} /> },
-        &PerspectiveTradeTriggerState::Sextant { ref item_selections, is_forward } => html! { <sextant::ResolveSextant {is_first_item} {offerer} {target} item_selections={item_selections.clone()} {is_forward}  /> },
+        &PerspectiveTradeTriggerState::Sextant { ref item_selections, is_forward } => html! { <sextant::ResolveSextant responsible_player={relevant_player} item_selections={item_selections.clone()} {is_forward}  /> },
     }
 }
 

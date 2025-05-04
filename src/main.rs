@@ -51,8 +51,8 @@ fn main() {
     println!("{:#?}", state);
     //state.apply_command(Player::Sarah, Command::RejectTrade).unwrap();
 
-    state.apply_command(Player::Marie, Command::AnnounceVictory { teammates: vec![] }).unwrap();
+    state.apply_command(Player::Marie, Command::AnnounceVictory { flavor: VictoryFlavor::Normal { teammates: vec![] } }).unwrap();
 
-    assert_eq!(state.turn, TurnState::GameOver { winner: Faction::Order });
+    assert_eq!(state.turn, TurnState::GameOver { winner: WinningFaction::Normal(Faction::Order) });
 }
 

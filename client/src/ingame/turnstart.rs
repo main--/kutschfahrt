@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::rc::Rc;
 
-use web_protocol::{Command, Item, Job, Perspective, Player};
+use web_protocol::{Command, Item, Job, Perspective, Player, VictoryFlavor};
 use yew::prelude::*;
 
 use crate::ingame::itemlist::{ItemList, ItemWithIndex};
@@ -77,7 +77,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
 
     let upcoming_command = (|| Some(match (*movekind, &*players, item.item(), *diplomat_item) {
         (WipMoveKind::Pass, _, _, _) => Command::Pass,
-        (WipMoveKind::AnnounceVictory, players, _, _) => Command::AnnounceVictory { teammates: players.clone() },
+        (WipMoveKind::AnnounceVictory, players, _, _) => Command::AnnounceVictory { flavor: VictoryFlavor::Normal { teammates: players.clone() } },
         (WipMoveKind::OfferTrade, players, Some(item), _) if players.len() == 1 => Command::OfferTrade { target: players[0], item },
         (WipMoveKind::Attack, players, _, _) if players.len() == 1 => Command::InitiateAttack { player: players[0] },
         (WipMoveKind::UseClairvoyant, _, _, _) if players.len() == 0 => Command::UseClairvoyant,

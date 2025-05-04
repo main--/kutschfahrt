@@ -85,7 +85,7 @@ pub enum PerspectiveTurnState {
     DoingClairvoyant { player: Player, item_stack: Option<Vec<Item>> },
     UnsuccessfulDiplomat { diplomat: Player, target: Player, inventory: Option<Vec<Item>> },
 
-    GameOver { winner: Faction },
+    GameOver { winner: WinningFaction },
     TradePending { offerer: Player, target: Player, item: Option<Item> },
     ResolvingTradeTrigger { offerer: Player, target: Player, is_first_item: bool, trigger: PerspectiveTradeTriggerState }, // for sextant, item selections are cleared
     Attacking { attacker: Player, defender: Player, state: PerspectiveAttackState }, // AttackState info ís always public
@@ -181,10 +181,16 @@ impl std::fmt::Display for Job {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
+pub enum WinningFaction {
+    Normal(Faction),
+    /// Loge
+    Traitor(Player),
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Faction {
     Order,
     Brotherhood,
-    //Traitor,
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TurnState {
@@ -196,7 +202,7 @@ pub enum TurnState {
     DoingClairvoyant { clairvoyant: Player, next: Player },
     UnsuccessfulDiplomat { diplomat: Player, target: Player },
 
-    GameOver { winner: Faction },
+    GameOver { winner: WinningFaction },
     TradePending {
         offerer: Player,
         target: Player,
@@ -308,7 +314,7 @@ pub enum TradeTriggerState {
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum Command {
     Pass,
-    AnnounceVictory { teammates: Vec<Player> },
+    AnnounceVictory { flavor: VictoryFlavor },
 
     UseDiplomat { target: Player, item: Item, return_item: Item },
     UseClairvoyant,
@@ -338,6 +344,13 @@ pub enum Command {
 
     DonateItem { target: Player, item: Item },
     DoneLookingAtThings,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum VictoryFlavor {
+    Normal { teammates: Vec<Player> },
+    Loge,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]

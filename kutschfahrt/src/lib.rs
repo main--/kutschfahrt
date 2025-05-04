@@ -61,6 +61,8 @@ pub enum CommandError {
     CantPoisonMixYourself,
     #[error("Clairvoyant needs to select exactly two items (unless the stack is almost empty)")]
     WrongNumberOfClairvoyantItems,
+    #[error("Solo victory requires at least 3 (mixed) victory items")]
+    InvalidLogeVictory,
 }
 
 impl From<JobUseError> for CommandError {
@@ -161,23 +163,27 @@ impl State {
                     // intended behavior: 99% of the time you will skip end phase by passing.
                     // but it's needed to give you an opportunity for end-of-turn clairvoyant and diplomat
 
-                    Command::AnnounceVictory { mut teammates } => {
+                    Command::AnnounceVictory { flavor } => {
                         let actor_player = s.p.player(actor);
                         if actor_player.items.contains(&Item::BlackPearl) {
                             return Err(CommandError::BlackPearl);
                         }
                         let faction = actor_player.faction;
-                        let required_items = match faction {
-                            Faction::Order => [Item::Key, Item::BagKey],
-                            Faction::Brotherhood => [Item::Goblet, Item::BagGoblet],
+                        let required_items: &[_] = match (&flavor, faction) {
+                            (VictoryFlavor::Normal { .. }, Faction::Order) => &[Item::Key, Item::BagKey],
+                            (VictoryFlavor::Normal { .. }, Faction::Brotherhood) => &[Item::Goblet, Item::BagGoblet],
+                            (VictoryFlavor::Loge, _) => &[Item::Key, Item::BagKey, Item::Goblet, Item::BagGoblet],
                         };
+                        let mut required_items = required_items.to_vec();
 
-                        let required_items = if s.item_stack.is_empty() {
-                            &required_items[..]
-                        } else {
-                            &required_items[..1]
+                        if !s.item_stack.is_empty() {
+                            required_items.retain(|&x| x != Item::BagKey && x != Item::BagGoblet);
+                        }
+
+                        let (loge, mut teammates) = match flavor {
+                            VictoryFlavor::Normal { teammates } => (false, teammates),
+                            VictoryFlavor::Loge => (true, Vec::new()),
                         };
-
                         teammates.push(actor);
                         let mut victory = true;
                         let mut total_victory_items = 0;
@@ -192,15 +198,20 @@ impl State {
                         }
                         victory &= total_victory_items >= 3;
 
-                        if victory {
-                            TurnState::GameOver { winner: faction }
+                        let winner = if loge {
+                            if !victory {
+                                return Err(CommandError::InvalidLogeVictory);
+                            }
+                            WinningFaction::Traitor(actor)
+                        } else if victory {
+                            WinningFaction::Normal(faction)
                         } else {
-                            let winner = match faction {
+                            WinningFaction::Normal(match faction {
                                 Faction::Order => Faction::Brotherhood,
                                 Faction::Brotherhood => Faction::Order,
-                            };
-                            TurnState::GameOver { winner }
-                        }
+                            })
+                        };
+                        TurnState::GameOver { winner }
                     }
                     Command::OfferTrade { target, item } => {
                         if actor == target {
@@ -503,8 +514,7 @@ impl State {
                 newstate
             }
             TurnState::ResolvingTradeTrigger { offerer, target, trigger, next_state } => {
-                let is_first_item = matches!(next_state, FollowupState::TradeTriggers { .. });
-                let responsible_player = if is_first_item { offerer } else { target };
+                let responsible_player = offerer;
                 let new_trigger = match trigger {
                     TradeTriggerState::Priviledge | TradeTriggerState::Monocle => {
                         if actor != responsible_player { return Err(CommandError::NotYourTurn); }
@@ -727,7 +737,7 @@ impl State {
             &TurnState::TradePending { offerer, target, .. } => TradePending { offerer, target, item: None },
             &TurnState::ResolvingTradeTrigger { offerer, target, ref trigger, ref next_state } => {
                 let is_first_item = matches!(next_state, FollowupState::TradeTriggers { .. });
-                let (relevant, other) = if is_first_item { (offerer, target) } else { (target, offerer) };
+                let (relevant, other) = (offerer, target);
                 let trigger = match trigger {
                     // only the relevant player is allowed to see the respective info
                     TradeTriggerState::Priviledge if relevant == p =>
@@ -887,7 +897,7 @@ fn perform_trade(
                     Some(trigger) => {
                         let next_state = FollowupState::State(next_state);
                         match trigger {
-                            Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer, target, trigger, next_state },
+                            Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer: target, target: offerer, trigger, next_state },
                             Err(NeedDonation) => TurnState::DonatingItem { donor: target, followup: next_state },
                         }
                     }
