@@ -153,7 +153,7 @@ impl State {
                         let resolved_target_item = target_items.items.iter().copied().find(|&x| x == item || (stack_empty && (item == Item::Goblet && x == Item::BagGoblet) || (item == Item::Key && x == Item::BagKey)));
                         drop((actor_items, target_items));
 
-                        s.action_log.push(ActionLogEntry::UseDiplomat { actor, target, success: resolved_target_item.is_some() });
+                        s.action_log.push(ActionLogEntry::UseDiplomat { actor, target, item, success: resolved_target_item.is_some() });
 
                         match resolved_target_item {
                             Some(target_item) => {

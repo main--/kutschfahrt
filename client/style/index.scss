@@ -4,6 +4,16 @@ input {
 
 .hud {
     user-select: none;
+    display: grid;
+    grid-template-columns: 1fr max-content;
+
+    .actionlog {
+        grid-area: 1 / 2 / 100 / 2;
+        display: flex;
+        flex-direction: column;
+        align-items: end;
+    }
+
     .playerlist {
         display: grid;
         grid-template-columns: 1fr max-content max-content;

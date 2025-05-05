@@ -421,7 +421,7 @@ pub enum ActionLogEntry {
     Pass { actor: Player },
     AnnounceVictory { actor: Player },
 
-    UseDiplomat { actor: Player, target: Player, success: bool },
+    UseDiplomat { actor: Player, target: Player, item: Item, success: bool },
     UseClairvoyant { actor: Player },
 
     TradeOffer { offerer: Player, target: Player, accepted: bool },

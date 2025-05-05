@@ -145,6 +145,7 @@ mod attacking;
 mod playerlist;
 mod itemlist;
 mod myjob;
+mod actionlog;
 mod clairvoyant;
 
 #[derive(Properties, PartialEq)]
@@ -193,6 +194,7 @@ fn game_ui(props: &GameUiProps) -> Html {
                             <itemlist::ItemList />
                         }
                         {body}
+                        <actionlog::ActionLog />
                     </ContextProvider<Rc<Perspective>>>
                 </div>
             }
