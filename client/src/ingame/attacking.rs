@@ -128,7 +128,7 @@ pub fn attacking(props: &AttackingProps) -> Html {
             if steal_items {
                 html! { <p>{format!("Waiting for {} to steal items ...", winner)}</p> }
             } else if let Some(i) = three_player_faction_index {
-                html! { <p>{format!("Waiting for {} to look at faction#{i} & job ...", winner)}</p> }
+                html! { <p>{format!("Waiting for {} to look at faction {} & job ...", winner, i + 1)}</p> }
             } else {
                 html! { <p>{format!("Waiting for {} to look at faction & job ...", winner)}</p> }
             }

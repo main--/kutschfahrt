@@ -5,6 +5,7 @@ use web_protocol::{Command, Item, Job, Perspective, Player, VictoryFlavor};
 use yew::prelude::*;
 
 use crate::ingame::itemlist::{ItemList, ItemWithIndex};
+use crate::ingame::myfaction::MyFaction;
 use crate::ingame::myjob::MyJob;
 use crate::ingame::playerlist::PlayerList;
 use crate::ingame::{CommandButton, SimpleDropdown};
@@ -128,6 +129,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
     html! {
         <>
             <PlayerList selected={Some(players.clone())} block_select={matches!(*movekind, WipMoveKind::Pass | WipMoveKind::UseClairvoyant)} />
+            <MyFaction />
             <MyJob />
             <ItemList selection={match *movekind { WipMoveKind::OfferTrade | WipMoveKind::UseDiplomat | WipMoveKind::None => Some(item.clone()), _ => None }} />
 

@@ -145,6 +145,7 @@ mod attacking;
 mod playerlist;
 mod itemlist;
 mod myjob;
+mod myfaction;
 mod actionlog;
 mod clairvoyant;
 
@@ -190,6 +191,7 @@ fn game_ui(props: &GameUiProps) -> Html {
                     <ContextProvider<Rc<Perspective>> context={Rc::new(p.clone())}>
                         if !hide_playerlist {
                             <playerlist::PlayerList />
+                            <myfaction::MyFaction />
                             <myjob::MyJob />
                             <itemlist::ItemList />
                         }
