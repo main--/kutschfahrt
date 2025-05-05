@@ -113,7 +113,7 @@ pub fn my_turn_start(MyTurnStartProps { is_turn_end, my_job, job_used }: &MyTurn
                     text += &p.to_string();
                 }
             }
-            Cow::from(format!("You are going to announce the victory of the {:?} {}.", perspective.you.faction, text))
+            Cow::from(format!("You are going to announce the victory of the {:?} {}.", perspective.you.effective_faction(), text))
         }
         WipMoveKind::OfferTrade => Cow::from(format!("You offer to trade a {} to {}.", item.item().map(|x| x.to_string()).unwrap_or("?".to_owned()), players.get(0).map(|p| p.to_string()).unwrap_or("?".to_owned()))),
         WipMoveKind::Attack => Cow::from(format!("You attack {}.", players.get(0).map(|p| p.to_string()).unwrap_or("?".to_owned()))),

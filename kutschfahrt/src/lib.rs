@@ -631,6 +631,8 @@ impl State {
                             target_state.items.push(item);
                         }
 
+                        s.action_log.push(ActionLogEntry::DonateItem { giver: donor, receiver: target });
+
                         resolve_trade_followup(s, followup)
                     }
                     _ => return Err(CommandError::InvalidCommandInThisContext),

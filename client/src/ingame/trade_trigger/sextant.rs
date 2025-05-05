@@ -24,8 +24,8 @@ pub fn resolve_sextant(props: &ResolveSextantProps) -> Html {
     match is_forward {
         None if *responsible_player == me.player => html! {
             <div class="sextant-lr">
-                <CommandButton command={Some(Command::SetSextantDirection { forward: true })} text={"Left"} />
-                <CommandButton command={Some(Command::SetSextantDirection { forward: false })} text={"Right"} />
+                <CommandButton command={Some(Command::SetSextantDirection { forward: false })} text={"Left"} />
+                <CommandButton command={Some(Command::SetSextantDirection { forward: true })} text={"Right"} />
             </div>
         },
         None => html! { <p class="sextant-text">{format!("Waiting for {} to determine the direction.", responsible_player)}</p> },

@@ -36,7 +36,7 @@ pub fn trade_offer(props: &TradeOfferProps) -> Html {
                 })}
             </div>
 
-            <div class="text">{format!("{} is offering you a {:?}", props.offerer, props.item)}</div>
+            <div class="text">{format!("{} is offering you a {}", props.offerer, props.item)}</div>
             <CommandButton class="is-green" text={"Accept"} command={item.map(|item| Command::AcceptTrade { item })} />
             <CommandButton class="is-red" text={"Decline"} command={Some(Command::RejectTrade)} />
         </div>

@@ -20,7 +20,7 @@ pub fn trade_trigger(props: &TradeTriggerProps) -> Html {
 
     match trigger {
         PerspectiveTradeTriggerState::Priviledge { items: None } => html! { <p>{format!("Waiting for {} to look at {}'s items ...", giver, receiver)}</p> },
-        PerspectiveTradeTriggerState::Priviledge { items: Some(items) } => html! { <><p>{format!("You see the following items: {:?}", items)}</p><DoneLookingBtn /></> },
+        PerspectiveTradeTriggerState::Priviledge { items: Some(items) } => html! { <><p>{format!("You see the following items: {}", items.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", "))}</p><DoneLookingBtn /></> },
         PerspectiveTradeTriggerState::Monocle { faction: None } if giver == myself => html! {
             html! {
                 <>
