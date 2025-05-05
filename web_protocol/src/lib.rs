@@ -70,6 +70,7 @@ pub struct Perspective {
     pub players: Vec<PerspectivePlayer>,
 
     pub item_stack: usize,
+    pub action_log: Vec<ActionLogEntry>,
     pub turn: PerspectiveTurnState,
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -87,7 +88,7 @@ pub enum PerspectiveTurnState {
 
     GameOver { winner: WinningFaction },
     TradePending { offerer: Player, target: Player, item: Option<Item> },
-    ResolvingTradeTrigger { offerer: Player, target: Player, is_first_item: bool, trigger: PerspectiveTradeTriggerState }, // for sextant, item selections are cleared
+    ResolvingTradeTrigger { giver: Player, receiver: Player, trigger: PerspectiveTradeTriggerState }, // for sextant, item selections are cleared
     Attacking { attacker: Player, defender: Player, state: PerspectiveAttackState }, // AttackState info ís always public
     DonatingItem { donor: Player },
 }
@@ -209,8 +210,8 @@ pub enum TurnState {
         item: Item,
     },
     ResolvingTradeTrigger {
-        offerer: Player,
-        target: Player,
+        giver: Player,
+        receiver: Player,
         trigger: TradeTriggerState,
         next_state: FollowupState,
     },
@@ -226,8 +227,8 @@ pub enum TurnState {
 pub enum FollowupState {
     State(Box<TurnState>),
     TradeTriggers {
-        offerer: Player,
-        target: Player,
+        giver: Player,
+        receiver: Player,
         item: Item,
         next_state: Box<TurnState>,
     },
@@ -414,3 +415,18 @@ pub fn inventory_limit(players: usize) -> usize {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum ActionLogEntry {
+    Pass { actor: Player },
+    AnnounceVictory { actor: Player },
+
+    UseDiplomat { actor: Player, target: Player, success: bool },
+    UseClairvoyant { actor: Player },
+
+    TradeOffer { offerer: Player, target: Player, accepted: bool },
+    Attack { attacker: Player, target: Player },
+
+    TradeTrigger { giver: Player, receiver: Player, item: Item },
+    DonateItem { giver: Player, receiver: Player },
+}

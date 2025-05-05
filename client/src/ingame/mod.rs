@@ -6,7 +6,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{EventSource, HtmlInputElement, MessageEvent};
 use yew::prelude::*;
 use yew_router::hooks::use_location;
-use web_protocol::{GameInfo, GameCommand, PerspectiveTurnState, Perspective};
+use web_protocol::{GameCommand, GameInfo, Perspective, PerspectiveTurnState, WinningFaction};
 
 pub struct Ingame {
     game: String,
@@ -171,10 +171,11 @@ fn game_ui(props: &GameUiProps) -> Html {
                     html! { <turnstart::MyTurnStart my_job={p.you.job} job_used={p.you.job_is_visible} is_turn_end={true} /> }
                 },
                 PerspectiveTurnState::TurnEndPhase { player } => html! { {format!("Waiting for {} to end their turn ...", player)} },
-                PerspectiveTurnState::GameOver { winner } => html! { <div class="victory-text">{format!("The {:?} is victorious!", winner)}</div> },
+                PerspectiveTurnState::GameOver { winner: WinningFaction::Normal(winner) } => html! { <div class="victory-text">{format!("The {:?} is victorious!", winner)}</div> },
+                PerspectiveTurnState::GameOver { winner: WinningFaction::Traitor(traitor) } => html! { <div class="victory-text">{format!("The sole victor is {traitor}!")}</div> },
                 &PerspectiveTurnState::TradePending { offerer, target, item } if target == me.player => html! { <trading::TradeOffer you={p.you.clone()} {offerer} item={item.unwrap()} stack_empty={p.item_stack == 0} /> },
                 PerspectiveTurnState::TradePending { offerer, target, .. } => html! { <p class="trade-text">{format!("{} is offering an item to {} ...", offerer, target)}</p> },
-                &PerspectiveTurnState::ResolvingTradeTrigger { offerer, target, ref trigger, is_first_item: _ } => html! { <trade_trigger::TradeTrigger {offerer} {target} trigger={trigger.clone()} /> },
+                &PerspectiveTurnState::ResolvingTradeTrigger { giver, receiver, ref trigger } => html! { <trade_trigger::TradeTrigger {giver} {receiver} trigger={trigger.clone()} /> },
 
                 &PerspectiveTurnState::Attacking { attacker, defender, ref state } => html! { <attacking::Attacking {attacker} {defender} myself={me.player} state={state.clone()} /> },
 

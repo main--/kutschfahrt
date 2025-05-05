@@ -11,6 +11,7 @@ fn teststate() -> State {
             ].into_iter().collect() },
             item_stack: vec![Item::BlackPearl, Item::Dagger],
             job_stack: vec![Job::Doctor],
+            action_log: vec![],
         },
         turn: TurnState::WaitingForQuickblink(Player::Sarah),
     }
@@ -119,8 +120,8 @@ fn trade_monocle() {
     s.game.p.player_mut(Player::Sarah).items.push(Item::Monocle);
     s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::Monocle }).unwrap();
     s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
-    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
-    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
+    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Sarah, receiver: Player::Marie, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
+    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Sarah, receiver: Player::Marie, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
     s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
     s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
@@ -133,8 +134,8 @@ fn trade_monocle_backwards() {
     s.turn = TurnState::WaitingForQuickblink(Player::Marie);
     s.apply_command(Player::Marie, Command::OfferTrade { target: Player::Sarah, item: Item::PoisonRing }).unwrap();
     s.apply_command(Player::Sarah, Command::AcceptTrade { item: Item::Monocle }).unwrap();
-    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
-    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
+    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Sarah, receiver: Player::Marie, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
+    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Sarah, receiver: Player::Marie, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
     s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
     s.apply_command(Player::Marie, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Zacharias));
@@ -147,11 +148,11 @@ fn trade_monocle_priviledge() {
     s.game.p.player_mut(Player::Marie).items.push(Item::Priviledge);
     s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::Monocle }).unwrap();
     s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::Priviledge }).unwrap();
-    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
-    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
+    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Sarah, receiver: Player::Marie, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
+    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Sarah, receiver: Player::Marie, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
     s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
-    assert_eq!(s.perspective(Player::Marie).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Priviledge { items: Some(vec![Item::BagKey, Item::Priviledge]) } });
-    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Priviledge { items: None } });
+    assert_eq!(s.perspective(Player::Marie).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Marie, receiver: Player::Sarah, trigger: PerspectiveTradeTriggerState::Priviledge { items: Some(vec![Item::BagKey, Item::Priviledge]) } });
+    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Marie, receiver: Player::Sarah, trigger: PerspectiveTradeTriggerState::Priviledge { items: None } });
     s.apply_command(Player::Marie, Command::DoneLookingAtThings).unwrap();
     s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
@@ -166,8 +167,8 @@ fn trade_monocle_with_bag_causing_donation() {
     s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::BagGoblet }).unwrap();
     s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::Monocle }).unwrap();
     s.apply_command(Player::Sarah, Command::DonateItem { target: Player::Zacharias, item: Item::Key }).unwrap();
-    assert_eq!(s.perspective(Player::Marie).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
-    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Marie, target: Player::Sarah, is_first_item: false, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
+    assert_eq!(s.perspective(Player::Marie).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Marie, receiver: Player::Sarah, trigger: PerspectiveTradeTriggerState::Monocle { faction: Some(Faction::Order) } });
+    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Marie, receiver: Player::Sarah, trigger: PerspectiveTradeTriggerState::Monocle { faction: None } });
     s.apply_command(Player::Marie, Command::DoneLookingAtThings).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForEndTurn(Player::Sarah));
     s.apply_command(Player::Sarah, Command::Pass).unwrap();
@@ -180,8 +181,8 @@ fn trade_priviledge() {
     s.game.p.player_mut(Player::Sarah).items.push(Item::Priviledge);
     s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::Priviledge }).unwrap();
     s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
-    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Priviledge { items: Some(vec![Item::Priviledge]) } });
-    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Priviledge { items: None } });
+    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Sarah, receiver: Player::Marie, trigger: PerspectiveTradeTriggerState::Priviledge { items: Some(vec![Item::Priviledge]) } });
+    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Sarah, receiver: Player::Marie, trigger: PerspectiveTradeTriggerState::Priviledge { items: None } });
     s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
     s.apply_command(Player::Sarah, Command::Pass).unwrap();
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
@@ -235,8 +236,8 @@ fn trade_coat() {
     s.apply_command(Player::Sarah, Command::OfferTrade { target: Player::Marie, item: Item::Coat }).unwrap();
     s.apply_command(Player::Marie, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
 
-    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Coat { available_jobs: Some(s.game.job_stack.clone()) } });
-    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { offerer: Player::Sarah, target: Player::Marie, is_first_item: true, trigger: PerspectiveTradeTriggerState::Coat { available_jobs: None } });
+    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Sarah, receiver: Player::Marie, trigger: PerspectiveTradeTriggerState::Coat { available_jobs: Some(s.game.job_stack.clone()) } });
+    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::ResolvingTradeTrigger { giver: Player::Sarah, receiver: Player::Marie, trigger: PerspectiveTradeTriggerState::Coat { available_jobs: None } });
 
     s.apply_command(Player::Sarah, Command::PickNewJob { job: Job::Doctor }).unwrap();
     assert_eq!(s.game.p.player(Player::Sarah).job, Job::Doctor);

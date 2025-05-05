@@ -17,6 +17,7 @@ pub struct GameState {
     p: GameStatePlayers,
     item_stack: Vec<Item>,
     job_stack: Vec<Job>,
+    action_log: Vec<ActionLogEntry>,
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GameStatePlayers {
@@ -129,11 +130,15 @@ impl State {
 
                 match c {
                     Command::Pass => {
-                        // no end phase (next_turn_player) for this because it would be redundant
+                        if !is_end_phase {
+                            s.action_log.push(ActionLogEntry::Pass { actor });
+                        }
+                        // skip end phase (next_turn_player) for this because it would be redundant
                         TurnState::WaitingForQuickblink(s.p.next_player(p))
                     }
                     Command::UseClairvoyant => {
                         s.p.player_mut(p).use_job(Job::Clairvoyant)?;
+                        s.action_log.push(ActionLogEntry::UseClairvoyant { actor });
                         TurnState::DoingClairvoyant { clairvoyant: p, next: next_turn_player }
                     }
                     Command::UseDiplomat { target, item, return_item } => {
@@ -147,6 +152,8 @@ impl State {
                         let stack_empty = s.item_stack.is_empty();
                         let resolved_target_item = target_items.items.iter().copied().find(|&x| x == item || (stack_empty && (item == Item::Goblet && x == Item::BagGoblet) || (item == Item::Key && x == Item::BagKey)));
                         drop((actor_items, target_items));
+
+                        s.action_log.push(ActionLogEntry::UseDiplomat { actor, target, success: resolved_target_item.is_some() });
 
                         match resolved_target_item {
                             Some(target_item) => {
@@ -165,6 +172,7 @@ impl State {
 
                     Command::AnnounceVictory { flavor } => {
                         let actor_player = s.p.player(actor);
+                        s.action_log.push(ActionLogEntry::AnnounceVictory { actor });
                         if actor_player.items.contains(&Item::BlackPearl) {
                             return Err(CommandError::BlackPearl);
                         }
@@ -226,6 +234,8 @@ impl State {
                         if !s.p.players.contains_key(&player) || actor == player {
                             return Err(CommandError::InvalidTargetPlayer);
                         }
+
+                        s.action_log.push(ActionLogEntry::Attack { attacker: actor, target: player });
 
                         // if the priest card is already publicly visible, skip the priest phase entirely
                         let priest_is_used = s.p.players.values().any(|p| p.borrow().job_is_visible && p.borrow().job == Job::Priest);
@@ -502,6 +512,7 @@ impl State {
             }
             TurnState::TradePending { offerer, target, item } => {
                 let mut newstate = TurnState::WaitingForEndTurn(offerer);
+                s.action_log.push(ActionLogEntry::TradeOffer { offerer, target, accepted: matches!(c, Command::AcceptTrade { .. }) });
                 match c {
                     _ if actor != target => return Err(CommandError::NotYourTurn),
                     Command::AcceptTrade { item: item2 } => {
@@ -513,11 +524,10 @@ impl State {
                 }
                 newstate
             }
-            TurnState::ResolvingTradeTrigger { offerer, target, trigger, next_state } => {
-                let responsible_player = offerer;
+            TurnState::ResolvingTradeTrigger { giver, receiver, trigger, next_state } => {
                 let new_trigger = match trigger {
                     TradeTriggerState::Priviledge | TradeTriggerState::Monocle => {
-                        if actor != responsible_player { return Err(CommandError::NotYourTurn); }
+                        if actor != giver { return Err(CommandError::NotYourTurn); }
 
                         match c {
                             Command::DoneLookingAtThings => Err(next_state),
@@ -525,7 +535,7 @@ impl State {
                         }
                     }
                     TradeTriggerState::Coat => {
-                        if actor != responsible_player { return Err(CommandError::NotYourTurn); }
+                        if actor != giver { return Err(CommandError::NotYourTurn); }
 
                         match c {
                             Command::PickNewJob { job } => {
@@ -541,10 +551,10 @@ impl State {
                             _ => return Err(CommandError::InvalidCommandInThisContext),
                         }
                     }
-                    TradeTriggerState::Sextant { is_forward: None, .. } if actor != responsible_player => return Err(CommandError::NotYourTurn),
+                    TradeTriggerState::Sextant { is_forward: None, .. } if actor != giver => return Err(CommandError::NotYourTurn),
                     TradeTriggerState::Sextant { item_selections, is_forward: None } => {
                         match c {
-                            Command::SetSextantDirection { forward } => Ok(TurnState::ResolvingTradeTrigger { offerer, target, next_state, trigger: TradeTriggerState::Sextant { item_selections, is_forward: Some(forward) } }),
+                            Command::SetSextantDirection { forward } => Ok(TurnState::ResolvingTradeTrigger { giver, receiver, next_state, trigger: TradeTriggerState::Sextant { item_selections, is_forward: Some(forward) } }),
                             _ => return Err(CommandError::InvalidCommandInThisContext),
                         }
                     }
@@ -580,7 +590,7 @@ impl State {
 
                                     Err(next_state)
                                 } else {
-                                    Ok(TurnState::ResolvingTradeTrigger { offerer, target, next_state, trigger: TradeTriggerState::Sextant { item_selections, is_forward: Some(forward) } })
+                                    Ok(TurnState::ResolvingTradeTrigger { giver, receiver, next_state, trigger: TradeTriggerState::Sextant { item_selections, is_forward: Some(forward) } })
                                 }
                             }
                             _ => return Err(CommandError::InvalidCommandInThisContext),
@@ -715,6 +725,7 @@ impl State {
             game: GameState {
                 item_stack: other_items,
                 job_stack: job_stack.iter().copied().collect(),
+                action_log: Vec::new(),
                 p: GameStatePlayers {
                     players: players.iter().zip(actual_start_items).zip(player_jobs).zip(factions)
                     .map(|(((&player, item), &mut job), &mut faction)| (player, RefCell::new(PlayerState { faction, job, job_is_visible: false, items: vec![item] }))).collect()
@@ -735,25 +746,23 @@ impl State {
             &TurnState::GameOver { winner } => GameOver { winner },
             &TurnState::TradePending { offerer, target, item } if target == p => TradePending { offerer, target, item: Some(item) },
             &TurnState::TradePending { offerer, target, .. } => TradePending { offerer, target, item: None },
-            &TurnState::ResolvingTradeTrigger { offerer, target, ref trigger, ref next_state } => {
-                let is_first_item = matches!(next_state, FollowupState::TradeTriggers { .. });
-                let (relevant, other) = (offerer, target);
+            &TurnState::ResolvingTradeTrigger { giver, receiver, ref trigger, next_state: _ } => {
                 let trigger = match trigger {
                     // only the relevant player is allowed to see the respective info
-                    TradeTriggerState::Priviledge if relevant == p =>
-                        PerspectiveTradeTriggerState::Priviledge { items: Some(self.game.p.player(other).items.clone()) },
+                    TradeTriggerState::Priviledge if giver == p =>
+                        PerspectiveTradeTriggerState::Priviledge { items: Some(self.game.p.player(receiver).items.clone()) },
                     TradeTriggerState::Priviledge => PerspectiveTradeTriggerState::Priviledge { items: None },
-                    TradeTriggerState::Monocle if relevant == p =>
-                        PerspectiveTradeTriggerState::Monocle { faction: Some(self.game.p.player(other).faction) },
+                    TradeTriggerState::Monocle if giver == p =>
+                        PerspectiveTradeTriggerState::Monocle { faction: Some(self.game.p.player(receiver).faction) },
                     TradeTriggerState::Monocle => PerspectiveTradeTriggerState::Monocle { faction: None },
-                    TradeTriggerState::Coat if relevant == p =>
+                    TradeTriggerState::Coat if giver == p =>
                         PerspectiveTradeTriggerState::Coat { available_jobs: Some(self.game.job_stack.clone()) },
                     TradeTriggerState::Coat => PerspectiveTradeTriggerState::Coat { available_jobs: None },
                     &TradeTriggerState::Sextant { ref item_selections, is_forward } =>
                         // only show the item you selected (so you know that you selected it)
                         PerspectiveTradeTriggerState::Sextant { item_selections: item_selections.iter().filter(|&(&k, _)| k == p).map(|(&k, &v)| (k, v)).collect(), is_forward },
                 };
-                ResolvingTradeTrigger { offerer, target, trigger, is_first_item }
+                ResolvingTradeTrigger { giver, receiver, trigger }
             }
             &TurnState::Attacking { attacker, defender, ref state } => {
                 let myself = if p == attacker {
@@ -798,6 +807,7 @@ impl State {
             }).collect(),
             item_stack: self.game.item_stack.len(),
             turn,
+            action_log: self.game.action_log.clone(),
         }
     }
 }
@@ -808,15 +818,19 @@ fn try_resolve_trade_trigger(
     item_stack: &mut Vec<Item>,
     offerer_state: &mut PlayerState,
     target_state: &mut PlayerState,
-    num_players: usize
-) -> Option<Result<TradeTriggerState, NeedDonation>> {
-    match item {
+    num_players: usize,
+) -> (Option<Result<TradeTriggerState, NeedDonation>>, bool) {
+    let mut public_information = true;
+    let ret = match item {
         Item::BagKey | Item::BagGoblet => {
             if let Some(i) = item_stack.pop() {
                 offerer_state.items.push(i);
                 if offerer_state.items.len() > inventory_limit(num_players) {
-                    return Some(Err(NeedDonation));
+                    return (Some(Err(NeedDonation)), true);
                 }
+            } else {
+                // if stack is empty, trading bags is hidden information
+                public_information = false;
             }
             None
         }
@@ -830,8 +844,13 @@ fn try_resolve_trade_trigger(
             target_state.job_is_visible = false;
             None
         }
-        _ => None,
-    }
+        _ => {
+            // trading items that don't have triggers is also hidden info
+            public_information = false;
+            None
+        }
+    };
+    (ret, public_information)
 }
 fn resolve_trade_followup(
     s: &mut GameState,
@@ -839,12 +858,16 @@ fn resolve_trade_followup(
 ) -> TurnState {
     match followup {
         FollowupState::State(s) => *s,
-        FollowupState::TradeTriggers { offerer, target, item, next_state } => {
-            let (mut offerer_state, mut target_state) = s.p.player_pair_mut(offerer, target);
-            match try_resolve_trade_trigger(item, &mut s.item_stack, &mut *offerer_state, &mut *target_state, s.p.players.len()) {
+        FollowupState::TradeTriggers { giver, receiver, item, next_state } => {
+            let (mut offerer_state, mut target_state) = s.p.player_pair_mut(giver, receiver);
+            let (trigger, public) = try_resolve_trade_trigger(item, &mut s.item_stack, &mut *offerer_state, &mut *target_state, s.p.players.len());
+            if public {
+                s.action_log.push(ActionLogEntry::TradeTrigger { giver, receiver, item });
+            }
+            match trigger {
                 None => *next_state,
-                Some(Ok(trigger)) => TurnState::ResolvingTradeTrigger { offerer, target, next_state: FollowupState::State(next_state), trigger },
-                Some(Err(NeedDonation)) => TurnState::DonatingItem { donor: target, followup: FollowupState::State(next_state) },
+                Some(Ok(trigger)) => TurnState::ResolvingTradeTrigger { giver, receiver, next_state: FollowupState::State(next_state), trigger },
+                Some(Err(NeedDonation)) => TurnState::DonatingItem { donor: receiver, followup: FollowupState::State(next_state) },
             }
         }
     }
@@ -884,20 +907,28 @@ fn perform_trade(
 
         let next_state = Box::new(next_state);
 
-        match try_resolve_trade_trigger(item, &mut s.item_stack, &mut offerer_state, &mut target_state, np) {
+        let (trigger, public) = try_resolve_trade_trigger(item, &mut s.item_stack, &mut offerer_state, &mut target_state, np);
+        if public {
+            s.action_log.push(ActionLogEntry::TradeTrigger { giver: offerer, receiver: target, item });
+        }
+        match trigger {
             Some(trigger) => {
-                let fus = FollowupState::TradeTriggers { offerer: target, target: offerer, item: item2, next_state };
+                let fus = FollowupState::TradeTriggers { giver: target, receiver: offerer, item: item2, next_state };
                 match trigger {
-                    Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer, target, next_state: fus, trigger },
+                    Ok(trigger) => TurnState::ResolvingTradeTrigger { giver: offerer, receiver: target, next_state: fus, trigger },
                     Err(NeedDonation) => TurnState::DonatingItem { donor: offerer, followup: fus },
                 }
             }
             None => {
-                match try_resolve_trade_trigger(item2, &mut s.item_stack, &mut target_state, &mut offerer_state, np) {
+                let (trigger, public) = try_resolve_trade_trigger(item2, &mut s.item_stack, &mut target_state, &mut offerer_state, np);
+                if public {
+                    s.action_log.push(ActionLogEntry::TradeTrigger { giver: target, receiver: offerer, item: item2 });
+                }
+                match trigger {
                     Some(trigger) => {
                         let next_state = FollowupState::State(next_state);
                         match trigger {
-                            Ok(trigger) => TurnState::ResolvingTradeTrigger { offerer: target, target: offerer, trigger, next_state },
+                            Ok(trigger) => TurnState::ResolvingTradeTrigger { giver: target, receiver: offerer, trigger, next_state },
                             Err(NeedDonation) => TurnState::DonatingItem { donor: target, followup: next_state },
                         }
                     }
