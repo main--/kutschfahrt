@@ -21,7 +21,7 @@ pub fn trade_trigger(props: &TradeTriggerProps) -> Html {
     match trigger {
         PerspectiveTradeTriggerState::Priviledge { items: None } => html! { <p>{format!("Waiting for {} to look at {}'s items ...", giver, receiver)}</p> },
         PerspectiveTradeTriggerState::Priviledge { items: Some(items) } => html! { <><p>{format!("You see the following items: {}", items.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", "))}</p><DoneLookingBtn /></> },
-        PerspectiveTradeTriggerState::Monocle { faction: None } if giver == myself => html! {
+        PerspectiveTradeTriggerState::Monocle { faction: None, three_player_faction_index: None } if giver == myself => html! {
             html! {
                 <>
                     {"Pick a faction card to look at:"}
@@ -31,8 +31,9 @@ pub fn trade_trigger(props: &TradeTriggerProps) -> Html {
                 </>
             }
         },
-        PerspectiveTradeTriggerState::Monocle { faction: None } => html! { <p>{format!("Waiting for {} to look at {}'s faction ...", giver, receiver)}</p> },
-        PerspectiveTradeTriggerState::Monocle { faction: Some(faction) } => html! { <><p>{format!("You see that {} is a member of the {:?}.", receiver, faction)}</p><DoneLookingBtn /></> },
+        PerspectiveTradeTriggerState::Monocle { faction: None, three_player_faction_index: None } => html! { <p>{format!("Waiting for {} to look at {}'s faction ...", giver, receiver)}</p> },
+        PerspectiveTradeTriggerState::Monocle { faction: None, three_player_faction_index: Some(i) } => html! { <p>{format!("Waiting for {} to look at {}'s faction {} ...", giver, receiver, i + 1)}</p> },
+        PerspectiveTradeTriggerState::Monocle { faction: Some(faction), three_player_faction_index: _ } => html! { <><p>{format!("You see that {} is a member of the {:?}.", receiver, faction)}</p><DoneLookingBtn /></> },
         PerspectiveTradeTriggerState::Coat { available_jobs: None } => html! { <p>{format!("Waiting for {} to pick a new job ...", giver)}</p> },
         PerspectiveTradeTriggerState::Coat { available_jobs: Some(jobs) } => html! { <coat::ResolveCoat jobs={jobs.clone()} /> },
         &PerspectiveTradeTriggerState::Sextant { ref item_selections, is_forward } => html! { <sextant::ResolveSextant responsible_player={giver} item_selections={item_selections.clone()} {is_forward}  /> },

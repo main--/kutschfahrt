@@ -779,9 +779,9 @@ impl State {
                     TradeTriggerState::Priviledge if giver == p =>
                         PerspectiveTradeTriggerState::Priviledge { items: Some(self.game.p.player(receiver).items.clone()) },
                     TradeTriggerState::Priviledge => PerspectiveTradeTriggerState::Priviledge { items: None },
-                    TradeTriggerState::Monocle { three_player_faction_index } if giver == p =>
-                        PerspectiveTradeTriggerState::Monocle { faction: self.game.p.player(receiver).faction_by_index(*three_player_faction_index) },
-                    TradeTriggerState::Monocle { .. } => PerspectiveTradeTriggerState::Monocle { faction: None },
+                    &TradeTriggerState::Monocle { three_player_faction_index } if giver == p =>
+                        PerspectiveTradeTriggerState::Monocle { faction: self.game.p.player(receiver).faction_by_index(three_player_faction_index), three_player_faction_index },
+                    &TradeTriggerState::Monocle { three_player_faction_index } => PerspectiveTradeTriggerState::Monocle { faction: None, three_player_faction_index },
                     TradeTriggerState::Coat if giver == p =>
                         PerspectiveTradeTriggerState::Coat { available_jobs: Some(self.game.job_stack.clone()) },
                     TradeTriggerState::Coat => PerspectiveTradeTriggerState::Coat { available_jobs: None },

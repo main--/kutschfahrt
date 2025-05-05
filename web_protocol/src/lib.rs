@@ -306,7 +306,7 @@ impl AttackSupport {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum PerspectiveTradeTriggerState {
     Priviledge { items: Option<Vec<Item>> },
-    Monocle { faction: Option<Faction> },
+    Monocle { faction: Option<Faction>, three_player_faction_index: Option<usize> },
     Coat { available_jobs: Option<Vec<Job>> },
     Sextant { item_selections: HashMap<Player, Item>, is_forward: Option<bool> },
 }
