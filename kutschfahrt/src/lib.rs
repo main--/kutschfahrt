@@ -176,7 +176,9 @@ impl State {
                         if actor_player.items.contains(&Item::BlackPearl) {
                             return Err(CommandError::BlackPearl);
                         }
-                        let faction = actor_player.faction;
+                        let faction = actor_player.effective_faction();
+                        let num_faction_members = s.p.players.values().filter(|x| x.borrow().effective_faction() == faction).count();
+                        let is_minority_faction = num_faction_members * 2 < s.p.players.len();
                         let required_items: &[_] = match (&flavor, faction) {
                             (VictoryFlavor::Normal { .. }, Faction::Order) => &[Item::Key, Item::BagKey],
                             (VictoryFlavor::Normal { .. }, Faction::Brotherhood) => &[Item::Goblet, Item::BagGoblet],
@@ -198,13 +200,14 @@ impl State {
                         for t in teammates {
                             let ts = s.p.player(t);
                             let victory_items = ts.items.iter().copied().filter(|i| required_items.contains(i)).count();
-                            if victory_items == 0 || ts.faction != faction {
+                            if victory_items == 0 || ts.effective_faction() != faction {
                                 victory = false;
                                 break;
                             }
                             total_victory_items += victory_items;
                         }
-                        victory &= total_victory_items >= 3;
+                        let needed_victory_items = if is_minority_faction { 2 } else { 3 };
+                        victory &= total_victory_items >= needed_victory_items;
 
                         let winner = if loge {
                             if !victory || !s.p.player(actor).items.contains(&Item::CoatOfArmorOfTheLoge) {
@@ -453,15 +456,15 @@ impl State {
                     }
                     match c {
                         Command::ClaimReward { steal_items } => {
-                            TurnState::Attacking { attacker, defender, state: AttackState::FinishResolving { winner, steal_items } }
+                            TurnState::Attacking { attacker, defender, state: AttackState::FinishResolving { winner, steal_items, three_player_faction_index: None } }
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
                 }
-                AttackState::FinishResolving { winner, steal_items } => {
-                    let winner_player = match winner {
-                        AttackWinner::Attacker => attacker,
-                        AttackWinner::Defender => defender,
+                AttackState::FinishResolving { winner, steal_items, three_player_faction_index } => {
+                    let (winner_player, loser_player) = match winner {
+                        AttackWinner::Attacker => (attacker, defender),
+                        AttackWinner::Defender => (defender, attacker),
                     };
                     if actor != winner_player {
                         return Err(CommandError::NotYourTurn);
@@ -470,10 +473,10 @@ impl State {
                     match c {
                         Command::DoneLookingAtThings if !steal_items => TurnState::WaitingForEndTurn(attacker),
                         Command::StealItem { item, give_back } if steal_items => {
-                            let mut attacker_state = s.p.player_mut(attacker);
-                            let mut defender_state = s.p.player_mut(defender);
+                            let mut winner_state = s.p.player_mut(winner_player);
+                            let mut loser_state = s.p.player_mut(loser_player);
 
-                            if give_back.is_some() != (defender_state.items.len() == 1) {
+                            if give_back.is_some() != (loser_state.items.len() == 1) {
                                 // violating giveback/donate game rules
                                 return Err(CommandError::InvalidStealCommand);
                             }
@@ -481,30 +484,37 @@ impl State {
                             // this whole structure is a bit more complex than it needs to be because we want
                             // to not modify the game state until we have determined that everything is in order
 
-                            let defender_del_idx = defender_state.items.iter().position(|x| *x == item).ok_or(CommandError::InvalidStealCommand)?;
+                            let defender_del_idx = loser_state.items.iter().position(|x| *x == item).ok_or(CommandError::InvalidStealCommand)?;
                             let attacker_del_idx = match give_back {
                                 None => None,
                                 // small complication here because we need to let you donate the item you are stealing
-                                Some(i) => Some(attacker_state.items.iter().chain(iter::once(&item)).position(|x| *x == i).ok_or(CommandError::InvalidStealCommand)?),
+                                Some(i) => Some(winner_state.items.iter().chain(iter::once(&item)).position(|x| *x == i).ok_or(CommandError::InvalidStealCommand)?),
                             };
 
 
                             // only now that everything is verified and valid can we actually modify the game state
-                            attacker_state.items.push(item);
+                            winner_state.items.push(item);
                             if let Some(i) = attacker_del_idx {
-                                attacker_state.items.remove(i);
+                                winner_state.items.remove(i);
                             }
 
-                            defender_state.items.remove(defender_del_idx);
+                            loser_state.items.remove(defender_del_idx);
                             if let Some(i) = give_back {
-                                defender_state.items.push(i);
+                                loser_state.items.push(i);
                             }
 
-                            if attacker_state.items.len() > inventory_limit(s.p.players.len()) {
-                                TurnState::DonatingItem { donor: attacker, followup: FollowupState::end_phase(attacker) }
+                            if winner_state.items.len() > inventory_limit(s.p.players.len()) {
+                                TurnState::DonatingItem { donor: winner_player, followup: FollowupState::end_phase(attacker) }
                             } else {
                                 TurnState::WaitingForEndTurn(attacker)
                             }
+                        }
+                        Command::ThreePlayerSelectFactionIndex { index } => {
+                            if three_player_faction_index.is_some() || matches!(s.p.player(loser_player).faction, FactionKind::Normal(_)) {
+                                return Err(CommandError::InvalidCommandInThisContext);
+                            }
+
+                            TurnState::Attacking { attacker, defender, state: AttackState::FinishResolving { winner, steal_items, three_player_faction_index: Some(index) } }
                         }
                         _ => return Err(CommandError::InvalidCommandInThisContext),
                     }
@@ -526,11 +536,15 @@ impl State {
             }
             TurnState::ResolvingTradeTrigger { giver, receiver, trigger, next_state } => {
                 let new_trigger = match trigger {
-                    TradeTriggerState::Priviledge | TradeTriggerState::Monocle => {
+                    trigger @ (TradeTriggerState::Priviledge | TradeTriggerState::Monocle { .. }) => {
                         if actor != giver { return Err(CommandError::NotYourTurn); }
 
                         match c {
                             Command::DoneLookingAtThings => Err(next_state),
+                            Command::ThreePlayerSelectFactionIndex { index } if
+                                matches!(trigger, TradeTriggerState::Monocle { three_player_faction_index: None })
+                                && matches!(s.p.player(receiver).faction, FactionKind::ThreePlayer(_))
+                                => Ok(TurnState::ResolvingTradeTrigger { giver, receiver, trigger: TradeTriggerState::Monocle { three_player_faction_index: Some(index) }, next_state }),
                             _ => return Err(CommandError::InvalidCommandInThisContext),
                         }
                     }
@@ -665,7 +679,7 @@ impl State {
     }
 
     pub fn new(mut players: Vec<Player>, rng: &mut impl Rng) -> State {
-        //assert!(players.len() >= 4); // TODO: dreier spiel in sinnvoll
+        assert!(players.len() >= 3);
 
         // Das ist jetzt nicht mehr falsch
         let mut start_items = [
@@ -703,9 +717,21 @@ impl State {
             Job::Diplomat,
             Job::Clairvoyant,
         ];
-        let instances_per_faction = (players.len() + 1) / 2;
-        let mut factions: Vec<_> = iter::repeat(Faction::Order).take(instances_per_faction)
-            .chain(iter::repeat(Faction::Brotherhood).take(instances_per_faction)).collect();
+
+        let mut factions: Vec<_>;
+        let factions: Box<dyn Iterator<Item=FactionKind>> = if players.len() == 3 {
+            factions = iter::repeat(Faction::Order).take(5)
+                .chain(iter::repeat(Faction::Brotherhood).take(5)).collect();
+            factions.shuffle(rng);
+            Box::new(factions.chunks_exact(3).map(|chunk| FactionKind::ThreePlayer(chunk.try_into().unwrap())))
+        } else {
+            let instances_per_faction = (players.len() + 1) / 2;
+            factions = iter::repeat(Faction::Order).take(instances_per_faction)
+                .chain(iter::repeat(Faction::Brotherhood).take(instances_per_faction)).collect();
+            let (factions, _) = factions.partial_shuffle(rng, players.len());
+            Box::new(factions.iter().copied().map(FactionKind::Normal))
+        };
+
         let (start_items, other_start_items) = start_items.partial_shuffle(rng, players.len() - 2);
         let mut actual_start_items = vec![Item::BagGoblet, Item::BagKey];
         actual_start_items.extend(start_items.iter().copied());
@@ -716,7 +742,6 @@ impl State {
         other_items.extend(other_start_items.iter().copied());
         other_items.shuffle(rng);
 
-        let (factions, _) = factions.partial_shuffle(rng, players.len());
 
         jobs.shuffle(rng);
         let (player_jobs, job_stack) = jobs.split_at_mut(players.len());
@@ -728,7 +753,7 @@ impl State {
                 action_log: Vec::new(),
                 p: GameStatePlayers {
                     players: players.iter().zip(actual_start_items).zip(player_jobs).zip(factions)
-                    .map(|(((&player, item), &mut job), &mut faction)| (player, RefCell::new(PlayerState { faction, job, job_is_visible: false, items: vec![item] }))).collect()
+                    .map(|(((&player, item), &mut job), faction)| (player, RefCell::new(PlayerState { faction, job, job_is_visible: false, items: vec![item] }))).collect()
                 }
             },
             turn: TurnState::WaitingForQuickblink(players[0]),
@@ -752,9 +777,9 @@ impl State {
                     TradeTriggerState::Priviledge if giver == p =>
                         PerspectiveTradeTriggerState::Priviledge { items: Some(self.game.p.player(receiver).items.clone()) },
                     TradeTriggerState::Priviledge => PerspectiveTradeTriggerState::Priviledge { items: None },
-                    TradeTriggerState::Monocle if giver == p =>
-                        PerspectiveTradeTriggerState::Monocle { faction: Some(self.game.p.player(receiver).faction) },
-                    TradeTriggerState::Monocle => PerspectiveTradeTriggerState::Monocle { faction: None },
+                    TradeTriggerState::Monocle { three_player_faction_index } if giver == p =>
+                        PerspectiveTradeTriggerState::Monocle { faction: self.game.p.player(receiver).faction_by_index(*three_player_faction_index) },
+                    TradeTriggerState::Monocle { .. } => PerspectiveTradeTriggerState::Monocle { faction: None },
                     TradeTriggerState::Coat if giver == p =>
                         PerspectiveTradeTriggerState::Coat { available_jobs: Some(self.game.job_stack.clone()) },
                     TradeTriggerState::Coat => PerspectiveTradeTriggerState::Coat { available_jobs: None },
@@ -775,7 +800,7 @@ impl State {
 
                 let state = match (state, myself) {
                     // if we're in FinishResolving AND I am the winner, then I get to see extra info
-                    (&AttackState::FinishResolving { winner, steal_items }, Some(me)) if me == winner => {
+                    (&AttackState::FinishResolving { winner, steal_items, three_player_faction_index }, Some(me)) if me == winner => {
                         let victim = match winner {
                             AttackWinner::Attacker => defender,
                             AttackWinner::Defender => attacker,
@@ -784,7 +809,12 @@ impl State {
                         if steal_items {
                             PerspectiveAttackState::FinishResolvingItems { target_items: victim.items.clone() }
                         } else {
-                            PerspectiveAttackState::FinishResolvingCredentials { target_faction: victim.faction, target_job: victim.job }
+                            victim
+                                .faction_by_index(three_player_faction_index)
+                                .map_or(
+                                    PerspectiveAttackState::FinishResolvingNeedFactionIndex,
+                                    |target_faction| PerspectiveAttackState::FinishResolvingCredentials { target_faction, target_job: victim.job }
+                                )
                         }
                     }
                     _ => PerspectiveAttackState::Normal(state.clone()),
@@ -835,7 +865,7 @@ fn try_resolve_trade_trigger(
             None
         }
         Item::Priviledge => Some(Ok(TradeTriggerState::Priviledge)),
-        Item::Monocle => Some(Ok(TradeTriggerState::Monocle)),
+        Item::Monocle => Some(Ok(TradeTriggerState::Monocle { three_player_faction_index: None })),
         Item::Sextant => Some(Ok(TradeTriggerState::Sextant { item_selections: HashMap::new(), is_forward: None })),
         Item::Coat => Some(Ok(TradeTriggerState::Coat)),
         Item::Tome => {

@@ -95,18 +95,25 @@ pub enum PerspectiveTurnState {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum PerspectiveAttackState {
     Normal(AttackState),
+    FinishResolvingNeedFactionIndex,
     FinishResolvingCredentials { target_faction: Faction, target_job: Job },
     FinishResolvingItems { target_items: Vec<Item> },
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub enum FactionKind {
+    Normal(Faction),
+    ThreePlayer([Faction; 3]),
+}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct PlayerState {
-    pub faction: Faction,
+    pub faction: FactionKind,
     pub job: Job,
     pub job_is_visible: bool,
     pub items: Vec<Item>,
 }
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Item {
     Key,
@@ -256,6 +263,7 @@ pub enum AttackState {
     FinishResolving {
         winner: AttackWinner,
         steal_items: bool,
+        three_player_faction_index: Option<usize>,
     },
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
@@ -306,7 +314,7 @@ pub enum PerspectiveTradeTriggerState {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TradeTriggerState {
     Priviledge,
-    Monocle,
+    Monocle { three_player_faction_index: Option<usize> },
     Coat,
     Sextant { item_selections: HashMap<Player, Item>, is_forward: Option<bool> },
 }
@@ -345,6 +353,8 @@ pub enum Command {
 
     DonateItem { target: Player, item: Item },
     DoneLookingAtThings,
+
+    ThreePlayerSelectFactionIndex { index: usize },
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -384,6 +394,28 @@ impl BuffSource {
 
 
 impl PlayerState {
+    pub fn effective_faction(&self) -> Faction {
+        match &self.faction {
+            FactionKind::Normal(faction) => *faction,
+            FactionKind::ThreePlayer(factions) => {
+                if factions.iter().filter(|&&x| x == Faction::Order).count() >= 2 {
+                    Faction::Order
+                } else {
+                    Faction::Brotherhood
+                }
+            }
+        }
+    }
+
+    pub fn faction_by_index(&self, idx: Option<usize>) -> Option<Faction> {
+        match (&self.faction, idx) {
+            (&FactionKind::Normal(faction), None) => Some(faction),
+            (&FactionKind::Normal(_), Some(_)) => panic!("Faction index specified but this is not a 3-player game"),
+            (&FactionKind::ThreePlayer(_), None) => None,
+            (&FactionKind::ThreePlayer(factions), Some(i)) => Some(factions[i]),
+        }
+    }
+
     pub fn use_job(&mut self, job: Job) -> Result<(), JobUseError> {
         if self.job == job && !(self.job_is_visible && job.once()) {
             self.job_is_visible = true;

@@ -176,7 +176,7 @@ fn game_ui(props: &GameUiProps) -> Html {
                 PerspectiveTurnState::GameOver { winner: WinningFaction::Traitor(traitor) } => html! { <div class="victory-text">{format!("The sole victor is {traitor}!")}</div> },
                 &PerspectiveTurnState::TradePending { offerer, target, item } if target == me.player => html! { <trading::TradeOffer you={p.you.clone()} {offerer} item={item.unwrap()} stack_empty={p.item_stack == 0} /> },
                 PerspectiveTurnState::TradePending { offerer, target, .. } => html! { <p class="trade-text">{format!("{} is offering an item to {} ...", offerer, target)}</p> },
-                &PerspectiveTurnState::ResolvingTradeTrigger { giver, receiver, ref trigger } => html! { <trade_trigger::TradeTrigger {giver} {receiver} trigger={trigger.clone()} /> },
+                &PerspectiveTurnState::ResolvingTradeTrigger { giver, receiver, ref trigger } => html! { <trade_trigger::TradeTrigger myself={me.player} {giver} {receiver} trigger={trigger.clone()} /> },
 
                 &PerspectiveTurnState::Attacking { attacker, defender, ref state } => html! { <attacking::Attacking {attacker} {defender} myself={me.player} state={state.clone()} /> },
 

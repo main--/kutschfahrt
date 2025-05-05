@@ -1,11 +1,14 @@
 mod sextant;
 
-use web_protocol::{Player, PerspectiveTradeTriggerState};
+use web_protocol::{Command, PerspectiveTradeTriggerState, Player};
 use yew::prelude::*;
+use crate::ingame::CommandButton;
+
 use super::DoneLookingBtn;
 
 #[derive(Properties, PartialEq)]
 pub struct TradeTriggerProps {
+    pub myself: Player,
     pub giver: Player,
     pub receiver: Player,
     pub trigger: PerspectiveTradeTriggerState,
@@ -13,11 +16,21 @@ pub struct TradeTriggerProps {
 
 #[function_component(TradeTrigger)]
 pub fn trade_trigger(props: &TradeTriggerProps) -> Html {
-    let &TradeTriggerProps { giver, receiver, ref trigger } = props;
+    let &TradeTriggerProps { myself, giver, receiver, ref trigger } = props;
 
     match trigger {
         PerspectiveTradeTriggerState::Priviledge { items: None } => html! { <p>{format!("Waiting for {} to look at {}'s items ...", giver, receiver)}</p> },
         PerspectiveTradeTriggerState::Priviledge { items: Some(items) } => html! { <><p>{format!("You see the following items: {:?}", items)}</p><DoneLookingBtn /></> },
+        PerspectiveTradeTriggerState::Monocle { faction: None } if giver == myself => html! {
+            html! {
+                <>
+                    {"Pick a faction card to look at:"}
+                    <CommandButton text={"1"} command={Some(Command::ThreePlayerSelectFactionIndex { index: 0 })} />
+                    <CommandButton text={"2"} command={Some(Command::ThreePlayerSelectFactionIndex { index: 1 })} />
+                    <CommandButton text={"3"} command={Some(Command::ThreePlayerSelectFactionIndex { index: 2 })} />
+                </>
+            }
+        },
         PerspectiveTradeTriggerState::Monocle { faction: None } => html! { <p>{format!("Waiting for {} to look at {}'s faction ...", giver, receiver)}</p> },
         PerspectiveTradeTriggerState::Monocle { faction: Some(faction) } => html! { <><p>{format!("You see that {} is a member of the {:?}.", receiver, faction)}</p><DoneLookingBtn /></> },
         PerspectiveTradeTriggerState::Coat { available_jobs: None } => html! { <p>{format!("Waiting for {} to pick a new job ...", giver)}</p> },

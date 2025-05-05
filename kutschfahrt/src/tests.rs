@@ -4,10 +4,25 @@ fn teststate() -> State {
     State {
         game: GameState {
             p: GameStatePlayers { players: [
-                (Player::Sarah, RefCell::new(PlayerState { faction: Faction::Order, job: Job::Duelist, job_is_visible: false, items: vec![Item::BagKey] })),
-                (Player::Gundla, RefCell::new(PlayerState { faction: Faction::Brotherhood, job: Job::Clairvoyant, job_is_visible: false, items: vec![Item::BagGoblet] })),
-                (Player::Marie, RefCell::new(PlayerState { faction: Faction::Order, job: Job::Thug, job_is_visible: false, items: vec![Item::PoisonRing] })),
-                (Player::Zacharias, RefCell::new(PlayerState { faction: Faction::Brotherhood, job: Job::Hypnotist, job_is_visible: false, items: vec![Item::Gloves] })),
+                (Player::Sarah, RefCell::new(PlayerState { faction: FactionKind::Normal(Faction::Order), job: Job::Duelist, job_is_visible: false, items: vec![Item::BagKey] })),
+                (Player::Gundla, RefCell::new(PlayerState { faction: FactionKind::Normal(Faction::Brotherhood), job: Job::Clairvoyant, job_is_visible: false, items: vec![Item::BagGoblet] })),
+                (Player::Marie, RefCell::new(PlayerState { faction: FactionKind::Normal(Faction::Order), job: Job::Thug, job_is_visible: false, items: vec![Item::PoisonRing] })),
+                (Player::Zacharias, RefCell::new(PlayerState { faction: FactionKind::Normal(Faction::Brotherhood), job: Job::Hypnotist, job_is_visible: false, items: vec![Item::Gloves] })),
+            ].into_iter().collect() },
+            item_stack: vec![Item::BlackPearl, Item::Dagger],
+            job_stack: vec![Job::Doctor],
+            action_log: vec![],
+        },
+        turn: TurnState::WaitingForQuickblink(Player::Sarah),
+    }
+}
+fn teststate_3p() -> State {
+    State {
+        game: GameState {
+            p: GameStatePlayers { players: [
+                (Player::Sarah, RefCell::new(PlayerState { faction: FactionKind::ThreePlayer([Faction::Order, Faction::Order, Faction::Brotherhood]), job: Job::Duelist, job_is_visible: false, items: vec![Item::BagKey] })),
+                (Player::Gundla, RefCell::new(PlayerState { faction: FactionKind::ThreePlayer([Faction::Brotherhood, Faction::Brotherhood, Faction::Order]), job: Job::Clairvoyant, job_is_visible: false, items: vec![Item::BagGoblet] })),
+                (Player::Marie, RefCell::new(PlayerState { faction: FactionKind::ThreePlayer([Faction::Order, Faction::Order, Faction::Brotherhood]), job: Job::Thug, job_is_visible: false, items: vec![Item::PoisonRing] })),
             ].into_iter().collect() },
             item_stack: vec![Item::BlackPearl, Item::Dagger],
             job_stack: vec![Job::Doctor],
@@ -383,7 +398,37 @@ fn attack_win_creds() {
 
     s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: false }).unwrap();
     assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingCredentials { target_faction: Faction::Brotherhood, target_job: Job::Hypnotist } });
-    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: false }) });
+    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: false, three_player_faction_index: None }) });
+    s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
+
+    assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::BagKey]);
+}
+
+#[test]
+fn attack_win_creds_3p() {
+    let mut s = teststate_3p();
+    s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Marie }).unwrap();
+
+    s.apply_command(Player::Sarah, Command::UsePriest { priest: false }).unwrap();
+    s.apply_command(Player::Gundla, Command::UsePriest { priest: false }).unwrap();
+    s.apply_command(Player::Marie, Command::UsePriest { priest: false }).unwrap();
+
+    s.apply_command(Player::Gundla, Command::DeclareSupport { support: AttackSupport::Abstain }).unwrap();
+
+    s.apply_command(Player::Sarah, Command::Hypnotize { target: None }).unwrap();
+
+    s.apply_command(Player::Sarah, Command::ItemOrJob { buff: Some(BuffSource::Job(Job::Duelist)), target: None }).unwrap();
+    s.apply_command(Player::Sarah, Command::ItemOrJob { buff: None, target: None }).unwrap();
+    s.apply_command(Player::Gundla, Command::ItemOrJob { buff: None, target: None }).unwrap();
+    s.apply_command(Player::Marie, Command::ItemOrJob { buff: None, target: None }).unwrap();
+
+    s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: false }).unwrap();
+    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Marie, state: PerspectiveAttackState::FinishResolvingNeedFactionIndex });
+    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Marie, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: false, three_player_faction_index: None }) });
+    s.apply_command(Player::Sarah, Command::ThreePlayerSelectFactionIndex { index: 0 }).unwrap();
+    assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Marie, state: PerspectiveAttackState::FinishResolvingCredentials { target_faction: Faction::Order, target_job: Job::Thug } });
+    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Marie, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: false, three_player_faction_index: Some(0) }) });
     s.apply_command(Player::Sarah, Command::DoneLookingAtThings).unwrap();
 
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
@@ -413,7 +458,7 @@ fn attack_win_steal_giveback() {
 
     s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: true }).unwrap();
     assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingItems { target_items: vec![Item::Gloves] } });
-    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true }) });
+    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true, three_player_faction_index: None }) });
     s.apply_command(Player::Sarah, Command::StealItem { item: Item::Gloves, give_back: Some(Item::BagKey) }).unwrap();
 
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
@@ -446,12 +491,47 @@ fn attack_win_steal() {
 
     s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: true }).unwrap();
     assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingItems { target_items: vec![Item::Gloves, Item::Coat] } });
-    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true }) });
+    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true, three_player_faction_index: None }) });
     s.apply_command(Player::Sarah, Command::StealItem { item: Item::Gloves, give_back: None }).unwrap();
 
     assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
     assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::BagKey, Item::Gloves]);
     assert_eq!(s.game.p.player(Player::Zacharias).items, vec![Item::Coat]);
+}
+
+#[test]
+fn attack_lose_steal() {
+    let mut s = teststate();
+    s.game.p.player_mut(Player::Zacharias).items.push(Item::Coat);
+
+    s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Zacharias }).unwrap();
+
+    s.apply_command(Player::Sarah, Command::UsePriest { priest: false }).unwrap();
+    s.apply_command(Player::Gundla, Command::UsePriest { priest: false }).unwrap();
+    s.apply_command(Player::Marie, Command::UsePriest { priest: false }).unwrap();
+    s.apply_command(Player::Zacharias, Command::UsePriest { priest: false }).unwrap();
+
+    s.apply_command(Player::Gundla, Command::DeclareSupport { support: AttackSupport::Defend }).unwrap();
+    s.apply_command(Player::Marie, Command::DeclareSupport { support: AttackSupport::Defend }).unwrap();
+
+    s.apply_command(Player::Sarah, Command::Hypnotize { target: None }).unwrap();
+
+    s.apply_command(Player::Sarah, Command::ItemOrJob { buff: None, target: None }).unwrap();
+    s.apply_command(Player::Gundla, Command::ItemOrJob { buff: None, target: None }).unwrap();
+    s.apply_command(Player::Marie, Command::ItemOrJob { buff: None, target: None }).unwrap();
+    s.apply_command(Player::Zacharias, Command::ItemOrJob { buff: None, target: None }).unwrap();
+
+    s.apply_command(Player::Zacharias, Command::ClaimReward { steal_items: true }).unwrap();
+    assert_eq!(s.perspective(Player::Zacharias).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingItems { target_items: vec![Item::BagKey] } });
+    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Defender, steal_items: true, three_player_faction_index: None }) });
+
+    assert_eq!(s.apply_command(Player::Zacharias, Command::StealItem { item: Item::BagKey, give_back: None }), Err(CommandError::InvalidStealCommand));
+    s.apply_command(Player::Zacharias, Command::StealItem { item: Item::BagKey, give_back: Some(Item::Gloves) }).unwrap();
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
+
+    assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+    assert_eq!(s.game.p.player(Player::Sarah).items, vec![Item::Gloves]);
+    assert_eq!(s.game.p.player(Player::Zacharias).items, vec![Item::Coat, Item::BagKey]);
 }
 
 #[test]
@@ -480,7 +560,7 @@ fn attack_win_steal_donate() {
 
     s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: true }).unwrap();
     assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingItems { target_items: vec![Item::Gloves, Item::Coat] } });
-    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true }) });
+    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true, three_player_faction_index: None }) });
     s.apply_command(Player::Sarah, Command::StealItem { item: Item::Gloves, give_back: None }).unwrap();
 
     s.apply_command(Player::Sarah, Command::DonateItem { target: Player::Marie, item: Item::Key }).unwrap();
@@ -517,7 +597,7 @@ fn attack_win_steal_donate2() {
 
     s.apply_command(Player::Sarah, Command::ClaimReward { steal_items: true }).unwrap();
     assert_eq!(s.perspective(Player::Sarah).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::FinishResolvingItems { target_items: vec![Item::Gloves, Item::Coat] } });
-    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true }) });
+    assert_eq!(s.perspective(Player::Gundla).turn, PerspectiveTurnState::Attacking { attacker: Player::Sarah, defender: Player::Zacharias, state: PerspectiveAttackState::Normal(AttackState::FinishResolving { winner: AttackWinner::Attacker, steal_items: true, three_player_faction_index: None }) });
     s.apply_command(Player::Sarah, Command::StealItem { item: Item::Gloves, give_back: None }).unwrap();
 
     s.apply_command(Player::Sarah, Command::DonateItem { target: Player::Marie, item: Item::Gloves }).unwrap();
