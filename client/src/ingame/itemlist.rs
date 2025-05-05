@@ -28,9 +28,11 @@ impl ItemWithIndex {
 pub struct ItemListProps {
     #[prop_or_default]
     pub selection: Option<ItemWithIndex>,
+    #[prop_or_default]
+    pub blocklist: Vec<Item>,
 }
 #[function_component(ItemList)]
-pub fn playerlist(ItemListProps { selection }: &ItemListProps) -> Html {
+pub fn playerlist(ItemListProps { selection, blocklist }: &ItemListProps) -> Html {
     let perspective = use_context::<Rc<Perspective>>().unwrap();
     html! {
         <>
@@ -39,7 +41,7 @@ pub fn playerlist(ItemListProps { selection }: &ItemListProps) -> Html {
                 {for perspective.you.items.iter().enumerate().map(|(idx, &i)| {
                     let is_selected = selection.as_ref().map_or(false, |x| x.index() == Some(idx));
                     let selected = if is_selected { Some("selected") } else { None };
-                    let can_select = selected.is_some();
+                    let can_select = selected.is_some() && !blocklist.contains(&i);
                     let selectable = if can_select { Some("selectable") } else { None };
                     let selection = selection.clone();
                     html! { <div class={classes!("entry", selected, selectable)} onclick={Callback::from(move |_| {
