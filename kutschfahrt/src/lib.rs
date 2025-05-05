@@ -894,6 +894,8 @@ fn resolve_trade_followup(
             let (mut offerer_state, mut target_state) = s.p.player_pair_mut(giver, receiver);
             let (trigger, public) = try_resolve_trade_trigger(item, &mut s.item_stack, &mut *offerer_state, &mut *target_state, s.p.players.len());
             if public {
+                // render both types of bags as BagGoblet to ensure we don't leak which one it is
+                let item = if item == Item::BagKey { Item::BagGoblet } else { item };
                 s.action_log.push(ActionLogEntry::TradeTrigger { giver, receiver, item });
             }
             match trigger {

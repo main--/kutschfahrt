@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use web_protocol::{ActionLogEntry, Perspective};
+use web_protocol::{ActionLogEntry, Item, Perspective};
 use yew::{function_component, html, use_context, Html, Properties};
 
 #[derive(Properties, PartialEq)]
@@ -31,6 +31,7 @@ fn entry(ActionLogEntryProps { action }: &ActionLogEntryProps) -> Html {
         &ActionLogEntry::UseClairvoyant { actor } => format!("{actor} reordered the item stack."),
         &ActionLogEntry::TradeOffer { offerer, target, accepted } => format!("{offerer} offered a trade to {target}. The trade was {}.", if accepted { "accepted" } else { "declined" }),
         &ActionLogEntry::Attack { attacker, target } => format!("{attacker} attacked {target}."),
+        &ActionLogEntry::TradeTrigger { giver, receiver, item: Item::BagGoblet } => format!("{giver} passed a Bag to {receiver}."),
         &ActionLogEntry::TradeTrigger { giver, receiver, item } => format!("{giver} passed a {item} to {receiver}."),
         &ActionLogEntry::DonateItem { giver, receiver } => format!("{giver} donates an item to {receiver}."),
     };
