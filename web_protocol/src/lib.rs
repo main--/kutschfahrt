@@ -14,6 +14,8 @@ pub enum MyState {
 pub enum GameInfo {
     WaitingForPlayers { players: Vec<Player>, you: Option<Player> },
     Game(Perspective),
+    /// when a game has already started and you're not part of it
+    Spectating(SpectatorPerspective),
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum GameCommand {
@@ -113,6 +115,16 @@ pub struct PlayerState {
     pub job_is_visible: bool,
     pub items: Vec<Item>,
 }
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub struct SpectatorPerspective {
+    pub players: Vec<PerspectivePlayer>,
+
+    pub item_stack: usize,
+    pub action_log: Vec<ActionLogEntry>,
+    pub turn: PerspectiveTurnState,
+}
+
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Item {

@@ -42,7 +42,10 @@ async fn game_get(db: &State<SqlitePool>, id: String, l: LoggedIn) -> Result<Jso
             let state: KutschfahrtState = serde_json::from_str(&s)?;
             GameInfo::Game(state.perspective(you))
         }
-        (Some(_), None) => unimplemented!("spectator mode"),
+        (Some(s), None) => {
+            let state: KutschfahrtState = serde_json::from_str(&s)?;
+            GameInfo::Spectating(state.spectate())
+        }
     }))
 }
 

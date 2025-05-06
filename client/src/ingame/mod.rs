@@ -166,7 +166,7 @@ fn game_ui(props: &GameUiProps) -> Html {
                     hide_all = true;
                     html! { <donation::ItemDonation /> }
                 }
-                PerspectiveTurnState::DonatingItem { donor } => html! { {format!("Waiting for {:?} to donate an item ...", donor)} },
+                PerspectiveTurnState::DonatingItem { donor } => html! { {format!("Waiting for {} to donate an item ...", donor)} },
                 PerspectiveTurnState::TurnStart { player } if player == &me.player => {
                     hide_all = true;
                     html! { <turnstart::MyTurnStart my_job={p.you.job} job_used={p.you.job_is_visible} is_turn_end={false} /> }
@@ -191,7 +191,7 @@ fn game_ui(props: &GameUiProps) -> Html {
                 &PerspectiveTurnState::DoingClairvoyant { player, .. } if player != me.player => html! { <p>{format!("Waiting for the Clairvoyant ({}) to do their work ...", player)}</p> },
                 PerspectiveTurnState::DoingClairvoyant { player: _, item_stack } => html! { <clairvoyant::Clairvoyant item_stack={item_stack.clone().unwrap()} /> },
                 &PerspectiveTurnState::UnsuccessfulDiplomat { diplomat, target, .. } if diplomat != me.player => html! { <p>{format!("Waiting for the Diplomat ({}) to confirm that {} does not have the requested item ...", diplomat, target)}</p> },
-                PerspectiveTurnState::UnsuccessfulDiplomat { target, inventory, .. } => html! { <><p>{format!("Since {} does not have the requested item, you may see their inventory: {:?}", target, inventory)}</p><DoneLookingBtn /></> },
+                PerspectiveTurnState::UnsuccessfulDiplomat { target, inventory, .. } => html! { <><p>{format!("Since {} does not have the requested item, you may see their inventory: {}", target, inventory.iter().flatten().map(|x| x.to_string()).collect::<Vec<_>>().join(", "))}</p><DoneLookingBtn /></> },
             };
             html! {
                 <div class="hud">
@@ -210,6 +210,7 @@ fn game_ui(props: &GameUiProps) -> Html {
                 </div>
             }
         }
+        GameInfo::Spectating(_) => html! { {"Spectating is not implemented yet"} },
     }
 }
 

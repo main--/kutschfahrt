@@ -761,6 +761,43 @@ impl State {
             turn: TurnState::WaitingForQuickblink(players[0]),
         }
     }
+    pub fn spectate(&self) -> SpectatorPerspective {
+        use PerspectiveTurnState::*;
+        let turn = match &self.turn {
+            &TurnState::WaitingForQuickblink(player) => TurnStart { player },
+            &TurnState::WaitingForEndTurn(player) => TurnEndPhase { player },
+            &TurnState::DoingClairvoyant { clairvoyant: c, .. } => DoingClairvoyant { player: c, item_stack: None },
+            &TurnState::UnsuccessfulDiplomat { diplomat , target } => UnsuccessfulDiplomat { diplomat, target, inventory: None },
+            &TurnState::GameOver { winner } => GameOver { winner },
+            &TurnState::TradePending { offerer, target, .. } => TradePending { offerer, target, item: None },
+            &TurnState::ResolvingTradeTrigger { giver, receiver, ref trigger, next_state: _ } => {
+                let trigger = match trigger {
+                    TradeTriggerState::Priviledge => PerspectiveTradeTriggerState::Priviledge { items: None },
+                    &TradeTriggerState::Monocle { three_player_faction_index } => PerspectiveTradeTriggerState::Monocle { faction: None, three_player_faction_index },
+                    TradeTriggerState::Coat => PerspectiveTradeTriggerState::Coat { available_jobs: None },
+                    &TradeTriggerState::Sextant { is_forward, .. } => PerspectiveTradeTriggerState::Sextant { item_selections: Default::default(), is_forward },
+                };
+                ResolvingTradeTrigger { giver, receiver, trigger }
+            }
+            &TurnState::Attacking { attacker, defender, ref state } => {
+                Attacking { attacker, defender, state: PerspectiveAttackState::Normal(state.clone()) }
+            }
+            &TurnState::DonatingItem { donor, .. } => PerspectiveTurnState::DonatingItem { donor },
+        };
+        SpectatorPerspective {
+            players: self.game.p.players.iter().map(|(&k, v)| {
+                let v = v.borrow();
+                PerspectivePlayer {
+                    player: k,
+                    job: if v.job_is_visible { Some(v.job) } else { None },
+                    item_count: v.items.len(),
+                }
+            }).collect(),
+            item_stack: self.game.item_stack.len(),
+            turn,
+            action_log: self.game.action_log.clone(),
+        }
+    }
     pub fn perspective(&self, p: Player) -> Perspective {
         use PerspectiveTurnState::*;
         let turn = match &self.turn {
