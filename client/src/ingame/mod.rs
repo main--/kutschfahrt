@@ -159,23 +159,30 @@ fn game_ui(props: &GameUiProps) -> Html {
         GameInfo::WaitingForPlayers { players, you } => html! { <pregame::WaitingForPlayers players={players.clone()} you={you.clone()} /> },
         GameInfo::Game(p) => {
             let me = &p.players[p.your_player_index];
-            let mut hide_playerlist = false;
+            let mut hide_all = false;
+            let mut hide_items = false;
             let body = match &p.turn {
-                PerspectiveTurnState::DonatingItem { donor } if donor == &me.player => html! { <donation::ItemDonation /> },
+                PerspectiveTurnState::DonatingItem { donor } if donor == &me.player => {
+                    hide_all = true;
+                    html! { <donation::ItemDonation /> }
+                }
                 PerspectiveTurnState::DonatingItem { donor } => html! { {format!("Waiting for {:?} to donate an item ...", donor)} },
                 PerspectiveTurnState::TurnStart { player } if player == &me.player => {
-                    hide_playerlist = true;
+                    hide_all = true;
                     html! { <turnstart::MyTurnStart my_job={p.you.job} job_used={p.you.job_is_visible} is_turn_end={false} /> }
                 },
                 PerspectiveTurnState::TurnStart { player } => html! { {format!("Waiting for {} ...", player)} },
                 PerspectiveTurnState::TurnEndPhase { player } if player == &me.player => {
-                    hide_playerlist = true;
+                    hide_all = true;
                     html! { <turnstart::MyTurnStart my_job={p.you.job} job_used={p.you.job_is_visible} is_turn_end={true} /> }
                 },
                 PerspectiveTurnState::TurnEndPhase { player } => html! { {format!("Waiting for {} to end their turn ...", player)} },
                 PerspectiveTurnState::GameOver { winner: WinningFaction::Normal(winner) } => html! { <div class="victory-text">{format!("The {:?} is victorious!", winner)}</div> },
                 PerspectiveTurnState::GameOver { winner: WinningFaction::Traitor(traitor) } => html! { <div class="victory-text">{format!("The sole victor is {traitor}!")}</div> },
-                &PerspectiveTurnState::TradePending { offerer, target, item } if target == me.player => html! { <trading::TradeOffer you={p.you.clone()} {offerer} item={item.unwrap()} stack_empty={p.item_stack == 0} /> },
+                &PerspectiveTurnState::TradePending { offerer, target, item } if target == me.player => {
+                    hide_items = true;
+                    html! { <trading::TradeOffer you={p.you.clone()} {offerer} item={item.unwrap()} stack_empty={p.item_stack == 0} /> }
+                }
                 PerspectiveTurnState::TradePending { offerer, target, .. } => html! { <p class="trade-text">{format!("{} is offering an item to {} ...", offerer, target)}</p> },
                 &PerspectiveTurnState::ResolvingTradeTrigger { giver, receiver, ref trigger } => html! { <trade_trigger::TradeTrigger myself={me.player} {giver} {receiver} trigger={trigger.clone()} /> },
 
@@ -189,11 +196,13 @@ fn game_ui(props: &GameUiProps) -> Html {
             html! {
                 <div class="hud">
                     <ContextProvider<Rc<Perspective>> context={Rc::new(p.clone())}>
-                        if !hide_playerlist {
+                        if !hide_all {
                             <playerlist::PlayerList />
                             <myfaction::MyFaction />
                             <myjob::MyJob />
-                            <itemlist::ItemList />
+                            if !hide_items {
+                                <itemlist::ItemList />
+                            }
                         }
                         {body}
                         <actionlog::ActionLog />
