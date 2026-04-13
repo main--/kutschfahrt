@@ -13,6 +13,21 @@ const ALL_JOBS: &[Job] = &[
     Job::Diplomat, Job::Clairvoyant,
 ];
 
+fn job_emoji(job: Job) -> &'static str {
+    match job {
+        Job::Thug        => "💪",
+        Job::GrandMaster => "⚜️",
+        Job::Bodyguard   => "💂",
+        Job::Duelist     => "🤺",
+        Job::PoisonMixer => "⚗️",
+        Job::Doctor      => "🩺",
+        Job::Priest      => "🙏",
+        Job::Hypnotist   => "🌀",
+        Job::Diplomat    => "🎭",
+        Job::Clairvoyant => "🔮",
+    }
+}
+
 fn item_emoji(item: Item) -> &'static str {
     match item {
         Item::Key                  => "🔑",
@@ -205,7 +220,7 @@ pub fn rules() -> Html {
                 { for ALL_JOBS.iter().map(|&job| html! {
                     <div class="card rules-card">
                         <div class="card-header">
-                            <p class="card-header-title">{job.tr_name(lang)}</p>
+                            <p class="card-header-title">{job_emoji(job)}{" "}{job.tr_name(lang)}</p>
                         </div>
                         <div class="card-content">
                             <p>{job.tr_desc(lang)}</p>
