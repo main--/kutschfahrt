@@ -6,7 +6,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{EventSource, HtmlInputElement, MessageEvent};
 use yew::prelude::*;
 use yew_router::hooks::use_location;
-use web_protocol::{GameCommand, GameInfo, Perspective, PerspectiveTurnState, WinningFaction, Faction};
+use web_protocol::{GameCommand, GameInfo, Item, Perspective, Player, PerspectiveTurnState, WinningFaction, Faction};
 
 pub use crate::i18n::{Lang, Translate, faction_name, action_log_text};
 
@@ -43,21 +43,12 @@ impl Component for Ingame {
             update_cb.emit(gi);
         });
 
-        let i = Ingame {
-            game,
-            game_info: None,
-
-            eventsrc,
-            _msg_listener,
-        };
-        i
+        Ingame { game, game_info: None, eventsrc, _msg_listener }
     }
 
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::Refresh(info) => {
-                self.game_info = Some(info);
-            }
+            Msg::Refresh(info) => { self.game_info = Some(info); }
         }
         true
     }
@@ -156,31 +147,68 @@ mod spectating;
 struct GameUiProps {
     pub gamestate: GameInfo,
 }
+
 #[function_component(GameUi)]
 fn game_ui(props: &GameUiProps) -> Html {
     let lang = use_context::<Lang>().unwrap_or_default();
+
+    // Hoisted selection state — shared between top-left PlayerList/top-right ItemList and the body component
+    let player_selection = use_state(|| Vec::<Player>::new());
+    let item_selection = itemlist::ItemWithIndex::use_new();
+    let block_players = use_state(|| false);
+
     match &props.gamestate {
-        GameInfo::WaitingForPlayers { players, you } => html! { <pregame::WaitingForPlayers players={players.clone()} you={you.clone()} /> },
+        GameInfo::WaitingForPlayers { players, you } => html! {
+            <pregame::WaitingForPlayers players={players.clone()} you={you.clone()} />
+        },
         GameInfo::Game(p) => {
             let me = &p.players[p.your_player_index];
-            let mut hide_all = false;
-            let mut hide_items = false;
-            let body = match &p.turn {
-                PerspectiveTurnState::DonatingItem { donor } if donor == &me.player => {
-                    hide_all = true;
-                    html! { <donation::ItemDonation /> }
+
+            // Compute item blocklist for top-right ItemList based on turn state
+            let item_blocklist: Vec<Item> = match &p.turn {
+                &PerspectiveTurnState::TradePending { item: Some(item), target, .. } if target == me.player => {
+                    let combo = vec![Item::BagGoblet, Item::BagKey];
+                    if combo.contains(&item) { combo } else { vec![] }
                 }
-                PerspectiveTurnState::DonatingItem { donor } => html! { <p>{lang.waiting_for_donate(&donor.to_string())}</p> },
-                PerspectiveTurnState::TurnStart { player } if player == &me.player => {
-                    hide_all = true;
-                    html! { <turnstart::MyTurnStart my_job={p.you.job} job_used={p.you.job_is_visible} is_turn_end={false} /> }
+                _ => vec![],
+            };
+
+            let body = match &p.turn {
+                PerspectiveTurnState::DonatingItem { donor } if donor == &me.player => html! {
+                    <donation::ItemDonation
+                        players={player_selection.clone()}
+                        item={item_selection.clone()}
+                    />
                 },
-                PerspectiveTurnState::TurnStart { player } => html! { <p>{lang.waiting_for(&player.to_string())}</p> },
-                PerspectiveTurnState::TurnEndPhase { player } if player == &me.player => {
-                    hide_all = true;
-                    html! { <turnstart::MyTurnStart my_job={p.you.job} job_used={p.you.job_is_visible} is_turn_end={true} /> }
+                PerspectiveTurnState::DonatingItem { donor } => html! {
+                    <p>{lang.waiting_for_donate(&donor.to_string())}</p>
                 },
-                PerspectiveTurnState::TurnEndPhase { player } => html! { <p>{lang.waiting_for(&player.to_string())}</p> },
+                PerspectiveTurnState::TurnStart { player } if player == &me.player => html! {
+                    <turnstart::MyTurnStart
+                        players={player_selection.clone()}
+                        item={item_selection.clone()}
+                        block_players={block_players.clone()}
+                        my_job={p.you.job}
+                        job_used={p.you.job_is_visible}
+                        is_turn_end={false}
+                    />
+                },
+                PerspectiveTurnState::TurnStart { player } => html! {
+                    <p>{lang.waiting_for(&player.to_string())}</p>
+                },
+                PerspectiveTurnState::TurnEndPhase { player } if player == &me.player => html! {
+                    <turnstart::MyTurnStart
+                        players={player_selection.clone()}
+                        item={item_selection.clone()}
+                        block_players={block_players.clone()}
+                        my_job={p.you.job}
+                        job_used={p.you.job_is_visible}
+                        is_turn_end={true}
+                    />
+                },
+                PerspectiveTurnState::TurnEndPhase { player } => html! {
+                    <p>{lang.waiting_for(&player.to_string())}</p>
+                },
                 PerspectiveTurnState::GameOver { winner: WinningFaction::Normal(Faction::Order) } => html! {
                     <div class="victory-screen victory-order">
                         <p class="victory-text">{lang.victory_order()}</p>
@@ -196,36 +224,62 @@ fn game_ui(props: &GameUiProps) -> Html {
                         <p class="victory-text">{lang.victory_traitor(&traitor.to_string())}</p>
                     </div>
                 },
-                &PerspectiveTurnState::TradePending { offerer, target, item } if target == me.player => {
-                    hide_items = true;
-                    html! { <trading::TradeOffer you={p.you.clone()} {offerer} item={item.unwrap()} stack_empty={p.item_stack == 0} /> }
-                }
-                PerspectiveTurnState::TradePending { offerer, target, .. } => html! { <p class="trade-text">{lang.waiting_for_trade(&offerer.to_string(), &target.to_string())}</p> },
-                &PerspectiveTurnState::ResolvingTradeTrigger { giver, receiver, ref trigger } => html! { <trade_trigger::TradeTrigger myself={me.player} {giver} {receiver} trigger={trigger.clone()} /> },
-
-                &PerspectiveTurnState::Attacking { attacker, defender, ref state } => html! { <attacking::Attacking {attacker} {defender} myself={me.player} state={state.clone()} /> },
-
-                &PerspectiveTurnState::DoingClairvoyant { player, .. } if player != me.player => html! { <p>{lang.waiting_for_clairvoyant(&player.to_string())}</p> },
-                PerspectiveTurnState::DoingClairvoyant { player: _, item_stack } => html! { <clairvoyant::Clairvoyant item_stack={item_stack.clone().unwrap()} /> },
-                &PerspectiveTurnState::UnsuccessfulDiplomat { diplomat, target, .. } if diplomat != me.player => html! { <p>{lang.waiting_for_diplomat(&diplomat.to_string(), &target.to_string())}</p> },
+                &PerspectiveTurnState::TradePending { offerer, target, item } if target == me.player => html! {
+                    <trading::TradeOffer
+                        you={p.you.clone()}
+                        {offerer}
+                        item={item.unwrap()}
+                        stack_empty={p.item_stack == 0}
+                        item_selection={item_selection.clone()}
+                    />
+                },
+                PerspectiveTurnState::TradePending { offerer, target, .. } => html! {
+                    <p class="trade-text">{lang.waiting_for_trade(&offerer.to_string(), &target.to_string())}</p>
+                },
+                &PerspectiveTurnState::ResolvingTradeTrigger { giver, receiver, ref trigger } => html! {
+                    <trade_trigger::TradeTrigger myself={me.player} {giver} {receiver} trigger={trigger.clone()} />
+                },
+                &PerspectiveTurnState::Attacking { attacker, defender, ref state } => html! {
+                    <attacking::Attacking {attacker} {defender} myself={me.player} state={state.clone()} />
+                },
+                &PerspectiveTurnState::DoingClairvoyant { player, .. } if player != me.player => html! {
+                    <p>{lang.waiting_for_clairvoyant(&player.to_string())}</p>
+                },
+                PerspectiveTurnState::DoingClairvoyant { player: _, item_stack } => html! {
+                    <clairvoyant::Clairvoyant item_stack={item_stack.clone().unwrap()} />
+                },
+                &PerspectiveTurnState::UnsuccessfulDiplomat { diplomat, target, .. } if diplomat != me.player => html! {
+                    <p>{lang.waiting_for_diplomat(&diplomat.to_string(), &target.to_string())}</p>
+                },
                 PerspectiveTurnState::UnsuccessfulDiplomat { target, inventory, .. } => {
                     let items_str = inventory.iter().flatten().map(|x| x.tr_name(lang)).collect::<Vec<_>>().join(", ");
                     html! { <><p>{lang.diplomat_no_item(&target.to_string(), &items_str)}</p><DoneLookingBtn /></> }
                 },
             };
+
             html! {
                 <div class="hud">
                     <ContextProvider<Rc<Perspective>> context={Rc::new(p.clone())}>
-                        if !hide_all {
-                            <playerlist::PlayerList />
+                        <div class="hud-topleft">
+                            <playerlist::PlayerList
+                                selected={Some(player_selection.clone())}
+                                block_select={*block_players}
+                            />
+                        </div>
+                        <div class="hud-topright">
                             <myfaction::MyFaction />
                             <myjob::MyJob />
-                            if !hide_items {
-                                <itemlist::ItemList />
-                            }
-                        }
-                        {body}
-                        <actionlog::ActionLog />
+                            <itemlist::ItemList
+                                selection={Some(item_selection.clone())}
+                                blocklist={item_blocklist}
+                            />
+                        </div>
+                        <div class="hud-bottomleft">
+                            <actionlog::ActionLog />
+                        </div>
+                        <div class="hud-bottomright">
+                            {body}
+                        </div>
                     </ContextProvider<Rc<Perspective>>>
                 </div>
             }

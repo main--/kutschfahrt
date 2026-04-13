@@ -1,19 +1,21 @@
-use web_protocol::Command;
+use web_protocol::{Command, Player};
 use yew::prelude::*;
 
-use crate::ingame::itemlist::{ItemList, ItemWithIndex};
-use crate::ingame::myfaction::MyFaction;
-use crate::ingame::myjob::MyJob;
-use crate::ingame::playerlist::PlayerList;
+use crate::ingame::itemlist::ItemWithIndex;
 use crate::ingame::{CommandButton, Lang};
 
-#[function_component(ItemDonation)]
-pub fn item_donation() -> Html {
-    let lang = use_context::<Lang>().unwrap_or_default();
-    let player = use_state(|| Vec::new());
-    let selection = ItemWithIndex::use_new();
+#[derive(Properties, PartialEq)]
+pub struct ItemDonationProps {
+    pub players: UseStateHandle<Vec<Player>>,
+    pub item: ItemWithIndex,
+}
 
-    let upcoming_command = match (player.as_slice(), selection.item()) {
+#[function_component(ItemDonation)]
+pub fn item_donation(props: &ItemDonationProps) -> Html {
+    let lang = use_context::<Lang>().unwrap_or_default();
+    let ItemDonationProps { players, item } = props;
+
+    let upcoming_command = match (players.as_slice(), item.item()) {
         (&[target], Some(item)) => Some(Command::DonateItem { target, item }),
         _ => None,
     };
@@ -21,11 +23,6 @@ pub fn item_donation() -> Html {
     html! {
         <>
             <p>{lang.donate_prompt()}</p>
-            <PlayerList selected={Some(player)} />
-            <MyFaction />
-            <MyJob />
-            <ItemList {selection} />
-
             <CommandButton command={upcoming_command} text={lang.submit()} />
         </>
     }

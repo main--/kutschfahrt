@@ -2,102 +2,104 @@ input {
     width: 100%;
 }
 
+// ── Main 2×2 HUD grid ─────────────────────────────────────────────────────────
 .hud {
     user-select: none;
     display: grid;
-    grid-template-columns: 1fr max-content;
+    grid-template-areas:
+        "topleft    topright"
+        "bottomleft bottomright";
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 1em;
+    min-height: 60vh;
 
-    .actionlog {
-        grid-area: 1 / 2 / 100 / 2;
-        display: flex;
-        flex-direction: column;
-        align-items: end;
+    .hud-topleft    { grid-area: topleft; }
+    .hud-topright   { grid-area: topright; }
+    .hud-bottomleft { grid-area: bottomleft; overflow-y: auto; }
+    .hud-bottomright { grid-area: bottomright; }
+}
+
+// ── Player list (top-left) ────────────────────────────────────────────────────
+.playerlist {
+    display: grid;
+    grid-template-columns: 1fr max-content max-content;
+    gap: .2em .5em;
+    padding-left: .2em;
+    padding-right: .2em;
+    margin-bottom: 1em;
+    width: fit-content;
+    border: 1px solid black;
+
+    .head {
+        display: contents;
+        font-weight: 800;
     }
+    .entry {
+        display: contents;
 
-    .playerlist {
-        display: grid;
-        grid-template-columns: 1fr max-content max-content;
-        gap: .2em .5em;
-        padding-left: .2em;
-        padding-right: .2em;
-        margin-bottom: 1em;
-
-        width: fit-content;
-        border: 1px solid black;
-        .head {
-            font-weight: 800;
+        .name { flex-grow: 1; }
+        .job  { text-align: center; }
+        .item_count {
+            font-variant-numeric: tabular-nums;
+            text-align: center;
         }
-        .entry {
+
+        &.selectable { cursor: pointer; }
+        &.selected .name { font-weight: 600; }
+        &.you .name::after {
+            content: ' (you)';
+            font-size: .7em;
+        }
+    }
+}
+
+// ── Item list (top-right) ─────────────────────────────────────────────────────
+.itemlist {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 1em;
+    gap: .5em;
+    flex-wrap: wrap;
+
+    .entry {
+        padding: 0 .2em;
+        border: 1px solid black;
+        &.selectable { cursor: pointer; }
+        &.selected { font-weight: 600; }
+    }
+}
+
+// ── Action area (bottom-right) ────────────────────────────────────────────────
+.actionlist {
+    display: flex;
+    flex-direction: row;
+    gap: .5em;
+    flex-wrap: wrap;
+    margin-bottom: .5em;
+}
+
+// ── Clairvoyant ───────────────────────────────────────────────────────────────
+.clairvoyant {
+    .items {
+        border: 1px solid black;
+        width: fit-content;
+        display: grid;
+        grid-template-columns: max-content max-content;
+        gap: .2em .5em;
+        margin-bottom: 1em;
+        .item {
             display: contents;
 
-            .name {
-                flex-grow: 1;
-            }
-            .job {
-                text-align: center;
-            }
-            .item_count {
-                font-variant-numeric: tabular-nums;
-                text-align: center;
-            }
-
-            &.selectable {
-                cursor: pointer;
-            }
-            &.selected .name {
-                font-weight: 600;
-            }
-            &.you .name::after {
-                content: ' (you)';
-                font-size: .7em;
-            }
-        }
-    }
-    .itemlist {
-        display: flex;
-        flex-direction: row;
-        margin-bottom: 1em;
-        gap: .5em;
-        .entry {
-            padding: 0 .2em;
-            border: 1px solid black;
-            &.selectable {
-                cursor: pointer;
-            }
-            &.selected {
-                font-weight: 600;
-            }
-        }
-    }
-    .actionlist {
-        display: flex;
-        flex-direction: row;
-        gap: .5em;
-    }
-
-    .clairvoyant {
-        .items {
-            border: 1px solid black;
-            width: fit-content;
-            display: grid;
-            grid-template-columns: max-content max-content;
-            gap: .2em .5em;
-            margin-bottom: 1em;
-            .item {
-                display: contents;
-
-                &:nth-child(-n + 2) {
-                    .up {
-                        visibility: hidden;
-                    }
-                    font-weight: bold;
-                }
+            &:nth-child(-n + 2) {
+                .up { visibility: hidden; }
+                font-weight: bold;
             }
         }
     }
 }
 
-// ── Tooltip support (via data-tooltip attribute) ──────────────────────────────
+// ── Tooltip support ───────────────────────────────────────────────────────────
 [data-tooltip] {
     position: relative;
     cursor: help;
@@ -158,7 +160,6 @@ input {
         color: #555;
         margin-bottom: .5em;
     }
-
     .spectating-turn-info {
         margin-bottom: .5em;
         font-style: italic;
