@@ -11,9 +11,11 @@ pub struct PlayerListProps {
     pub selected: Option<UseStateHandle<Vec<Player>>>,
     #[prop_or_default]
     pub block_select: bool,
+    #[prop_or_default]
+    pub active_player: Option<Player>,
 }
 #[function_component(PlayerList)]
-pub fn playerlist(PlayerListProps { selected, block_select }: &PlayerListProps) -> Html {
+pub fn playerlist(PlayerListProps { selected, block_select, active_player }: &PlayerListProps) -> Html {
     let perspective = use_context::<Rc<Perspective>>().unwrap();
     let lang = use_context::<Lang>().unwrap_or_default();
     html! {
@@ -25,9 +27,11 @@ pub fn playerlist(PlayerListProps { selected, block_select }: &PlayerListProps) 
             </div>
             {for perspective.players.iter().enumerate().map(|(i, p)| {
                 let is_you = i == perspective.your_player_index;
+                let is_active = *active_player == Some(p.player);
                 let you = if is_you { Some("you") } else { None };
+                let active = if is_active { Some("active-turn") } else { None };
 
-                let mut class = classes!("entry", you);
+                let mut class = classes!("entry", you, active);
                 let mut onclick = None;
                 if let Some(players) = &selected {
                     if players.contains(&p.player) {

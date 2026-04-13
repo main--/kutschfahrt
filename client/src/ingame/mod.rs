@@ -164,6 +164,19 @@ fn game_ui(props: &GameUiProps) -> Html {
         GameInfo::Game(p) => {
             let me = &p.players[p.your_player_index];
 
+            // Which player is currently taking their turn (highlighted for everyone)
+            let active_player: Option<Player> = match &p.turn {
+                PerspectiveTurnState::TurnStart { player }
+                | PerspectiveTurnState::TurnEndPhase { player }
+                | PerspectiveTurnState::DoingClairvoyant { player, .. }  => Some(*player),
+                PerspectiveTurnState::DonatingItem { donor }             => Some(*donor),
+                PerspectiveTurnState::TradePending { offerer, .. }       => Some(*offerer),
+                PerspectiveTurnState::ResolvingTradeTrigger { giver, .. }=> Some(*giver),
+                PerspectiveTurnState::Attacking { attacker, .. }         => Some(*attacker),
+                PerspectiveTurnState::UnsuccessfulDiplomat { diplomat, .. } => Some(*diplomat),
+                PerspectiveTurnState::GameOver { .. }                    => None,
+            };
+
             // Compute item blocklist for top-right ItemList based on turn state
             let item_blocklist: Vec<Item> = match &p.turn {
                 &PerspectiveTurnState::TradePending { item: Some(item), target, .. } if target == me.player => {
@@ -264,6 +277,7 @@ fn game_ui(props: &GameUiProps) -> Html {
                             <playerlist::PlayerList
                                 selected={Some(player_selection.clone())}
                                 block_select={*block_players}
+                                active_player={active_player}
                             />
                         </div>
                         <div class="hud-topright">

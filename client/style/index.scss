@@ -51,6 +51,15 @@ input {
             content: ' (you)';
             font-size: .7em;
         }
+        &.active-turn > div {
+            background: #d4edda;
+            font-weight: 600;
+        }
+        &.active-turn .name::before {
+            content: '▶ ';
+            color: #28a745;
+            font-size: .8em;
+        }
     }
 }
 
