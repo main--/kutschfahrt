@@ -562,6 +562,12 @@ impl Lang {
             Lang::De => format!("{}'s Gegenstände: {}", receiver, items),
         }
     }
+    pub fn items_of_label(self, receiver: &str) -> String {
+        match self {
+            Lang::En => format!("{}'s items:", receiver),
+            Lang::De => format!("{}'s Gegenstände:", receiver),
+        }
+    }
     pub fn looking_at_faction(self, giver: &str, receiver: &str) -> String {
         match self {
             Lang::En => format!("Waiting for {} to look at {}'s faction ...", giver, receiver),

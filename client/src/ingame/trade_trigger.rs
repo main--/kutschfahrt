@@ -24,17 +24,18 @@ pub fn trade_trigger(props: &TradeTriggerProps) -> Html {
         PerspectiveTradeTriggerState::Priviledge { items } => {
             if am_giver {
                 match items {
-                    Some(items) => {
-                        let items_str = items.iter()
-                            .map(|i| i.tr_name(lang).to_string())
-                            .collect::<Vec<_>>()
-                            .join(", ");
-                        html! {
-                            <>
-                                <p>{ lang.items_of(&receiver.to_string(), &items_str) }</p>
-                                <DoneLookingBtn />
-                            </>
-                        }
+                    Some(items) => html! {
+                        <>
+                            <p>{ lang.items_of_label(&receiver.to_string()) }</p>
+                            <div class="itemlist">
+                                { for items.iter().map(|&i| html! {
+                                    <div class="entry" data-tooltip={i.tr_tooltip(lang)}>
+                                        {i.tr_emoji()}{" "}{i.tr_name(lang)}
+                                    </div>
+                                })}
+                            </div>
+                            <DoneLookingBtn />
+                        </>
                     },
                     None => html! { <p>{ lang.waiting_others() }</p> },
                 }
