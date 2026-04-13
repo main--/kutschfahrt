@@ -89,16 +89,28 @@ pub fn my_turn_start(props: &MyTurnStartProps) -> Html {
         })}>{text}</button> }
     };
 
+    let has_black_pearl = perspective.you.items.contains(&Item::BlackPearl);
+
     let mut buttons = Vec::new();
     if *is_turn_end {
         buttons.push(html! { <CommandButton text={lang.end_turn()} command={Command::Pass} class={"actionchoice endturn"} /> });
     } else {
         buttons.extend([
-            action_btn(WipMoveKind::Attack,          lang.attack().into(),          HasItem::No),
-            action_btn(WipMoveKind::OfferTrade,      lang.offer_trade().into(),     HasItem::Yes),
-            action_btn(WipMoveKind::AnnounceVictory, lang.announce_victory().into(),HasItem::No),
-            action_btn(WipMoveKind::Pass,            lang.pass().into(),            HasItem::No),
+            action_btn(WipMoveKind::Attack,      lang.attack().into(),      HasItem::No),
+            action_btn(WipMoveKind::OfferTrade,  lang.offer_trade().into(), HasItem::Yes),
         ]);
+        if has_black_pearl {
+            buttons.push(html! {
+                <span class="disabled-btn-wrap" data-tooltip={lang.black_pearl_no_victory()}>
+                    <button class="button actionchoice" disabled={true}>
+                        {lang.announce_victory()}
+                    </button>
+                </span>
+            });
+        } else {
+            buttons.push(action_btn(WipMoveKind::AnnounceVictory, lang.announce_victory().into(), HasItem::No));
+        }
+        buttons.push(action_btn(WipMoveKind::Pass, lang.pass().into(), HasItem::No));
     };
     if *my_job == Job::Clairvoyant && !job_used {
         buttons.push(action_btn(WipMoveKind::UseClairvoyant, lang.use_clairvoyant().into(), HasItem::No));

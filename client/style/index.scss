@@ -30,6 +30,19 @@ input {
 
             &:last-child { margin-bottom: 0; }
         }
+
+        // Wrapper for disabled buttons so tooltip still works
+        .disabled-btn-wrap {
+            display: block;
+            cursor: not-allowed;
+            margin-bottom: .4em;
+            &:last-child { margin-bottom: 0; }
+
+            .button[disabled] {
+                width: 100%;
+                pointer-events: none;
+            }
+        }
     }
 }
 

@@ -366,6 +366,7 @@ impl Lang {
     pub fn announce_victory(self) -> &'static str { self.s("👑 Announce Victory",           "👑 Sieg verkünden") }
     pub fn pass(self)             -> &'static str { self.s("⏭ Pass",                        "⏭ Passen") }
     pub fn game_start(self)       -> &'static str { self.s("The game begins.",               "Das Spiel beginnt.") }
+    pub fn black_pearl_no_victory(self) -> &'static str { self.s("Cannot proclaim victory while holding the Black Pearl.", "Mit der Schwarzen Perle kann der Sieg nicht verkündet werden.") }
     pub fn use_clairvoyant(self)  -> &'static str { self.s("🔮 Use Clairvoyant",            "🔮 Hellseher einsetzen") }
     pub fn use_diplomat(self)     -> &'static str { self.s("🎭 Use Diplomat",               "🎭 Diplomat einsetzen") }
     pub fn loge_victory(self)     -> &'static str { self.s("🌟 Announce Sole Victory (Loge)", "🌟 Alleinigen Sieg verkünden (Loge)") }
