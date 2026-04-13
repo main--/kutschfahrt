@@ -378,7 +378,13 @@ impl Lang {
     pub fn offer_trade(self)      -> &'static str { self.s("🤝 Offer Trade",                "🤝 Tausch anbieten") }
     pub fn announce_victory(self) -> &'static str { self.s("👑 Announce Victory",           "👑 Sieg verkünden") }
     pub fn pass(self)             -> &'static str { self.s("⏭ Pass",                        "⏭ Passen") }
-    pub fn game_start(self)       -> &'static str { self.s("The game begins.",               "Das Spiel beginnt.") }
+    pub fn game_start(self)        -> &'static str { self.s("The game begins.",               "Das Spiel beginnt.") }
+    pub fn draw_pile_label(self)   -> &'static str { self.s("Draw pile",                      "Nachziehstapel") }
+    pub fn empty(self)             -> &'static str { self.s("empty",                          "leer") }
+    pub fn bags_now_count_tip(self)-> &'static str { self.s(
+        "The draw pile is empty. Secret Bags now count as Keys or Goblets respectively.",
+        "Der Nachziehstapel ist leer. Geheime Koffer zählen jetzt als Schlüssel bzw. Kelch."
+    ) }
     pub fn black_pearl_no_victory(self)    -> &'static str { self.s("Cannot proclaim victory while holding the Black Pearl.", "Mit der Schwarzen Perle kann der Sieg nicht verkündet werden.") }
     pub fn black_pearl_must_accept(self)   -> &'static str { self.s("The Black Pearl must always be accepted.", "Die Schwarze Perle muss immer angenommen werden.") }
     pub fn broken_mirror_must_accept(self) -> &'static str { self.s("The Broken Mirror must always be accepted.", "Der Zerbrochene Spiegel muss immer angenommen werden.") }

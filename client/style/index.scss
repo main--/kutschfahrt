@@ -105,6 +105,19 @@ input {
     }
 }
 
+// ── Draw pile counter (top-right) ────────────────────────────────────────────
+.draw-pile-count {
+    font-size: .9em;
+    margin-top: .4em;
+    color: #555;
+
+    .draw-pile-empty {
+        color: #e74c3c;
+        font-weight: 600;
+        cursor: help;
+    }
+}
+
 // ── Action area (bottom-right) ────────────────────────────────────────────────
 .actionlist {
     display: flex;

@@ -288,6 +288,16 @@ fn game_ui(props: &GameUiProps) -> Html {
                                 selection={Some(item_selection.clone())}
                                 blocklist={item_blocklist}
                             />
+                            <p class="draw-pile-count">
+                                {lang.draw_pile_label()}{": "}
+                                if p.item_stack > 0 {
+                                    <span>{p.item_stack}</span>
+                                } else {
+                                    <span class="draw-pile-empty" data-tooltip={lang.bags_now_count_tip()}>
+                                        {lang.empty()}
+                                    </span>
+                                }
+                            </p>
                         </div>
                         <div class="hud-bottomleft">
                             <actionlog::ActionLog />
