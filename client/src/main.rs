@@ -12,8 +12,10 @@ use yew::prelude::*;
 use yew_router::prelude::*;
 
 use web_protocol::MyState;
+use ingame::Lang;
 
 mod ingame;
+mod i18n;
 
 
 #[derive(Clone, Debug, PartialEq, Routable)]
@@ -30,6 +32,7 @@ type Link = yew_router::prelude::Link<AppRoute>;
 
 struct App {
     my_state: Option<MyState>,
+    lang: Lang,
 }
 
 
@@ -37,6 +40,7 @@ enum Msg {
     GotState(MyState),
     Login,
     Logout,
+    SetLang(Lang),
 }
 
 async fn fetch_json<T: serde::de::DeserializeOwned>(path: &str) -> T {
@@ -46,7 +50,7 @@ async fn fetch_json<T: serde::de::DeserializeOwned>(path: &str) -> T {
     let text = text.as_string().unwrap();
     serde_json::from_str(&text).unwrap()
 }
-async fn post_json<T: serde::Serialize>(path: &str, body: &T) {
+pub async fn post_json<T: serde::Serialize>(path: &str, body: &T) {
     let body = serde_json::to_string(body).unwrap();
     let opts = web_sys::RequestInit::new();
     opts.set_method("POST");
@@ -65,11 +69,11 @@ async fn post_json<T: serde::Serialize>(path: &str, body: &T) {
 fn view_game_item(game: String) -> Html {
     html! { <li><Link to={AppRoute::Game { id: game.clone() }}>{game}</Link></li> }
 }
-fn view_content(r: AppRoute, my_games: Vec<String>) -> Html {
+fn view_content(r: AppRoute, my_games: Vec<String>, lang: Lang) -> Html {
     match r {
         AppRoute::Home => html! {
             <div>
-                <h3 class="title">{"Your Games"}</h3>
+                <h3 class="title">{lang.your_games()}</h3>
                 <div class="content">
                     <ul>
                         {for my_games.into_iter().map(|g| view_game_item(g))}
@@ -80,7 +84,7 @@ fn view_content(r: AppRoute, my_games: Vec<String>) -> Html {
         },
         AppRoute::Game { id: g } => html! {
             <div class="content">
-                <h1>{format!("Game '{}'", g)}</h1>
+                <h1>{format!("{} '{}'", lang.game_label(), g)}</h1>
                 <div>
                     <ingame::Ingame game={g.clone()} />
                 </div>
@@ -94,7 +98,7 @@ impl Component for App {
 
     fn create(ctx: &Context<Self>) -> Self {
         ctx.link().send_future(async { Msg::GotState(fetch_json("/api/me").await) });
-        App { my_state: None }
+        App { my_state: None, lang: Lang::De }
     }
 
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
@@ -110,48 +114,60 @@ impl Component for App {
             Msg::Logout => {
                 window().location().set_pathname("/api/logout").unwrap();
             }
+            Msg::SetLang(l) => {
+                self.lang = l;
+            }
         }
         true
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+        let lang = self.lang;
         let login_btn = match self.my_state {
             None => html! { <div /> },
-            Some(MyState::LoggedOut) => html! { <button class="button is-black is-outlined" onclick={ctx.link().callback(|_| Msg::Login)}>{"Login"}</button> },
-            Some(MyState::LoggedIn { .. }) => html! { <button class="button is-black is-outlined" onclick={ctx.link().callback(|_| Msg::Logout)}>{"Logout"}</button> },
+            Some(MyState::LoggedOut) => html! { <button class="button is-black is-outlined" onclick={ctx.link().callback(|_| Msg::Login)}>{lang.login()}</button> },
+            Some(MyState::LoggedIn { .. }) => html! { <button class="button is-black is-outlined" onclick={ctx.link().callback(|_| Msg::Logout)}>{lang.logout()}</button> },
         };
+        let lang_de = ctx.link().callback(|_| Msg::SetLang(Lang::De));
+        let lang_en = ctx.link().callback(|_| Msg::SetLang(Lang::En));
         let (my_games, logged_in) = match &self.my_state {
             Some(MyState::LoggedIn { my_games }) => (my_games.clone(), true),
             _ => (vec![], false),
         };
         html! {
             <BrowserRouter>
-                <nav class="navbar is-success">
-                    <div class="container">
-                        <div class="navbar-brand">
-                            <div class="navbar-item">
-                                <h3 class="title has-text-white is-4">{"Kutschfahrt"}</h3>
-                            </div>
-                        </div>
-                        <div class="navbar-menu">
-                            <div class="navbar-end">
+                <ContextProvider<Lang> context={lang}>
+                    <nav class="navbar is-success">
+                        <div class="container">
+                            <div class="navbar-brand">
                                 <div class="navbar-item">
-                                    {login_btn}
+                                    <h3 class="title has-text-white is-4">{"Kutschfahrt"}</h3>
+                                </div>
+                            </div>
+                            <div class="navbar-menu">
+                                <div class="navbar-end">
+                                    <div class="navbar-item lang-switcher">
+                                        <button class={classes!("button", "is-small", (lang == Lang::De).then_some("is-active"))} onclick={lang_de}>{"DE"}</button>
+                                        <button class={classes!("button", "is-small", (lang == Lang::En).then_some("is-active"))} onclick={lang_en}>{"EN"}</button>
+                                    </div>
+                                    <div class="navbar-item">
+                                        {login_btn}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </nav>
+                    </nav>
 
-                <div class="container is-centered">
-                    {if logged_in { html! {
+                    <div class="container is-centered">
                         <Switch<AppRoute>
-                            render={move |r| view_content(r, my_games.clone())}
+                            render={move |r| match r {
+                                AppRoute::Game { .. } => view_content(r, my_games.clone(), lang),
+                                _ if logged_in => view_content(r, my_games.clone(), lang),
+                                _ => html! { <p class="mt-4">{lang.please_login()}</p> },
+                            }}
                         />
-                    } } else { html! {
-                        {"Please log in."}
-                    } }}
-                </div>
+                    </div>
+                </ContextProvider<Lang>>
             </BrowserRouter>
         }
     }
@@ -161,4 +177,3 @@ fn main() {
     set_panic_hook();
     yew::Renderer::<App>::new().render();
 }
-
