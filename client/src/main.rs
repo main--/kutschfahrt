@@ -14,14 +14,21 @@ use yew_router::prelude::*;
 use web_protocol::MyState;
 use ingame::Lang;
 
+fn s(lang: Lang, en: &'static str, de: &'static str) -> &'static str {
+    match lang { Lang::En => en, Lang::De => de }
+}
+
 mod ingame;
 mod i18n;
+mod rules;
 
 
 #[derive(Clone, Debug, PartialEq, Routable)]
 pub enum AppRoute {
     #[at("/game/:id")]
     Game { id: String },
+    #[at("/rules")]
+    Rules,
     #[at("/")]
     Home,
 }
@@ -71,6 +78,7 @@ fn view_game_item(game: String) -> Html {
 }
 fn view_content(r: AppRoute, my_games: Vec<String>, lang: Lang) -> Html {
     match r {
+        AppRoute::Rules => html! { <rules::Rules /> },
         AppRoute::Home => html! {
             <div>
                 <h3 class="title">{lang.your_games()}</h3>
@@ -145,6 +153,11 @@ impl Component for App {
                                 </div>
                             </div>
                             <div class="navbar-menu">
+                                <div class="navbar-start">
+                                    <Link to={AppRoute::Rules} classes="navbar-item">
+                                        {s(lang, "📖 Rules", "📖 Regeln")}
+                                    </Link>
+                                </div>
                                 <div class="navbar-end">
                                     <div class="navbar-item lang-switcher">
                                         <button class={classes!("button", "is-small", (lang == Lang::De).then_some("is-active"))} onclick={lang_de}>{"DE"}</button>
@@ -161,6 +174,7 @@ impl Component for App {
                     <div class="container is-centered">
                         <Switch<AppRoute>
                             render={move |r| match r {
+                                AppRoute::Rules => view_content(r, my_games.clone(), lang),
                                 AppRoute::Game { .. } => view_content(r, my_games.clone(), lang),
                                 _ if logged_in => view_content(r, my_games.clone(), lang),
                                 _ => html! { <p class="mt-4">{lang.please_login()}</p> },
