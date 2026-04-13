@@ -17,7 +17,20 @@ input {
     .hud-topleft    { grid-area: topleft; }
     .hud-topright   { grid-area: topright; }
     .hud-bottomleft { grid-area: bottomleft; }
-    .hud-bottomright { grid-area: bottomright; }
+    .hud-bottomright {
+        grid-area: bottomright;
+
+        // All action buttons: full width, taller, left-aligned
+        .button:not(.up) {
+            width: 100%;
+            padding-top: .65em;
+            padding-bottom: .65em;
+            justify-content: flex-start;
+            margin-bottom: .4em;
+
+            &:last-child { margin-bottom: 0; }
+        }
+    }
 }
 
 // ── Player list (top-left) ────────────────────────────────────────────────────
@@ -82,10 +95,9 @@ input {
 // ── Action area (bottom-right) ────────────────────────────────────────────────
 .actionlist {
     display: flex;
-    flex-direction: row;
-    gap: .5em;
-    flex-wrap: wrap;
-    margin-bottom: .5em;
+    flex-direction: column;
+    gap: 0;          // margin-bottom on .button handles spacing
+    margin-bottom: .75em;
 }
 
 // ── Action log (bottom-left) ─────────────────────────────────────────────────
@@ -113,11 +125,14 @@ input {
 }
 
 // ── Ally / target selectors (bottom-right action area) ───────────────────────
-.ally-select, .target-select, .choose-diplomat {
+.ally-select, .choose-diplomat {
     display: flex;
-    flex-direction: row;
-    gap: .4em;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 0;          // margin-bottom on .button handles spacing
+    margin-bottom: .5em;
+}
+
+.target-select {
     margin-bottom: .5em;
 }
 
@@ -249,7 +264,6 @@ input {
     display: flex;
     flex-direction: column;
     gap: .5em;
-    width: fit-content;
 }
 
 // ── Spectating ────────────────────────────────────────────────────────────────
