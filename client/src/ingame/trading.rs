@@ -16,10 +16,12 @@ pub struct TradeOfferProps {
 #[function_component(TradeOffer)]
 pub fn trade_offer(props: &TradeOfferProps) -> Html {
     let lang = use_context::<Lang>().unwrap_or_default();
-    let reject = match props.item {
-        Item::BlackPearl | Item::BrokenMirror => None,
-        _ => Some(Command::RejectTrade),
+    let must_accept_reason: Option<&'static str> = match props.item {
+        Item::BlackPearl  => Some(lang.black_pearl_must_accept()),
+        Item::BrokenMirror => Some(lang.broken_mirror_must_accept()),
+        _ => None,
     };
+    let reject = must_accept_reason.is_none().then_some(Command::RejectTrade);
 
     let item = props.item_selection.item();
 
@@ -32,7 +34,13 @@ pub fn trade_offer(props: &TradeOfferProps) -> Html {
             </div>
             <p>{lang.select_item_hint()}</p>
             <CommandButton class="is-success" text={lang.accept()} command={item.map(|item| Command::AcceptTrade { item })} />
-            <CommandButton class="is-danger" text={lang.decline()} command={reject} />
+            if let Some(reason) = must_accept_reason {
+                <span class="disabled-btn-wrap" data-tooltip={reason}>
+                    <button class="button is-danger" disabled={true}>{lang.decline()}</button>
+                </span>
+            } else {
+                <CommandButton class="is-danger" text={lang.decline()} command={reject} />
+            }
         </div>
     }
 }
