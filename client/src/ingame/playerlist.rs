@@ -3,6 +3,8 @@ use std::rc::Rc;
 use web_protocol::{Perspective, Player};
 use yew::{classes, function_component, html, use_context, Callback, Html, Properties, UseStateHandle};
 
+use super::{Lang, Translate};
+
 #[derive(Properties, PartialEq)]
 pub struct PlayerListProps {
     #[prop_or_default]
@@ -13,12 +15,13 @@ pub struct PlayerListProps {
 #[function_component(PlayerList)]
 pub fn playerlist(PlayerListProps { selected, block_select }: &PlayerListProps) -> Html {
     let perspective = use_context::<Rc<Perspective>>().unwrap();
+    let lang = use_context::<Lang>().unwrap_or_default();
     html! {
         <div class="playerlist">
             <div class="entry head">
-                <div>{"Player"}</div>
-                <div class={"job"}>{"Job"}</div>
-                <div>{"Items"}</div>
+                <div>{lang.player_col()}</div>
+                <div class={"job"}>{lang.job_col()}</div>
+                <div>{lang.items_col()}</div>
             </div>
             {for perspective.players.iter().enumerate().map(|(i, p)| {
                 let is_you = i == perspective.your_player_index;
@@ -53,7 +56,9 @@ pub fn playerlist(PlayerListProps { selected, block_select }: &PlayerListProps) 
                 html! {
                     <div class={class} onclick={onclick}>
                         <div class="name">{p.player.to_string()}</div>
-                        <div class="job">{p.job.map(|j| format!("{:?}", j)).unwrap_or("?".to_owned())}</div>
+                        <div class="job" data-tooltip={p.job.map(|j| j.tr_desc(lang)).unwrap_or_default()}>
+                            {p.job.map(|j| j.tr_name(lang).to_string()).unwrap_or_else(|| "?".to_owned())}
+                        </div>
                         <div class="item_count">{p.item_count}</div>
                     </div>
                 }

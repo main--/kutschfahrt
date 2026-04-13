@@ -45,7 +45,6 @@ input {
                 cursor: pointer;
             }
             &.selected .name {
-                //background-color: red;
                 font-weight: 600;
             }
             &.you .name::after {
@@ -95,5 +94,84 @@ input {
                 }
             }
         }
+    }
+}
+
+// ── Tooltip support (via data-tooltip attribute) ──────────────────────────────
+[data-tooltip] {
+    position: relative;
+    cursor: help;
+
+    &:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 120%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #333;
+        color: #fff;
+        padding: .3em .6em;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        max-width: 280px;
+        font-size: .8em;
+        z-index: 100;
+        pointer-events: none;
+    }
+}
+
+// ── Victory screen ────────────────────────────────────────────────────────────
+.victory-screen {
+    padding: 2em;
+    border-radius: 8px;
+    text-align: center;
+    margin: 1em 0;
+
+    .victory-text {
+        font-size: 1.5em;
+        font-weight: 700;
+    }
+
+    &.victory-order       { background: #e8f4f8; border: 2px solid #2980b9; color: #1a5276; }
+    &.victory-brotherhood { background: #f9ebea; border: 2px solid #c0392b; color: #922b21; }
+    &.victory-loge        { background: #fdfefe; border: 2px solid #1a1a1a; color: #1a1a1a; }
+}
+
+// ── Victory confirmation dialog ───────────────────────────────────────────────
+.victory-confirm {
+    background: #fff8e1;
+    border: 2px solid #f39c12;
+    border-radius: 6px;
+    padding: 1em;
+    margin-top: .5em;
+    display: flex;
+    flex-direction: column;
+    gap: .5em;
+    width: fit-content;
+}
+
+// ── Spectating ────────────────────────────────────────────────────────────────
+.spectating {
+    .spectating-badge {
+        font-size: 1.2em;
+        font-weight: 600;
+        color: #555;
+        margin-bottom: .5em;
+    }
+
+    .spectating-turn-info {
+        margin-bottom: .5em;
+        font-style: italic;
+    }
+}
+
+// ── Language switcher ─────────────────────────────────────────────────────────
+.lang-switcher {
+    display: flex;
+    gap: .3em;
+
+    .button.is-active {
+        font-weight: 700;
+        text-decoration: underline;
     }
 }

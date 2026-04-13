@@ -6,7 +6,9 @@ use wasm_bindgen::JsCast;
 use web_sys::{EventSource, HtmlInputElement, MessageEvent};
 use yew::prelude::*;
 use yew_router::hooks::use_location;
-use web_protocol::{GameCommand, GameInfo, Perspective, PerspectiveTurnState, WinningFaction};
+use web_protocol::{GameCommand, GameInfo, Perspective, PerspectiveTurnState, WinningFaction, Faction};
+
+pub use crate::i18n::{Lang, Translate, faction_name, action_log_text};
 
 pub struct Ingame {
     game: String,
@@ -148,6 +150,7 @@ mod myjob;
 mod myfaction;
 mod actionlog;
 mod clairvoyant;
+mod spectating;
 
 #[derive(Properties, PartialEq)]
 struct GameUiProps {
@@ -155,6 +158,7 @@ struct GameUiProps {
 }
 #[function_component(GameUi)]
 fn game_ui(props: &GameUiProps) -> Html {
+    let lang = use_context::<Lang>().unwrap_or_default();
     match &props.gamestate {
         GameInfo::WaitingForPlayers { players, you } => html! { <pregame::WaitingForPlayers players={players.clone()} you={you.clone()} /> },
         GameInfo::Game(p) => {
@@ -166,32 +170,48 @@ fn game_ui(props: &GameUiProps) -> Html {
                     hide_all = true;
                     html! { <donation::ItemDonation /> }
                 }
-                PerspectiveTurnState::DonatingItem { donor } => html! { {format!("Waiting for {} to donate an item ...", donor)} },
+                PerspectiveTurnState::DonatingItem { donor } => html! { <p>{lang.waiting_for_donate(&donor.to_string())}</p> },
                 PerspectiveTurnState::TurnStart { player } if player == &me.player => {
                     hide_all = true;
                     html! { <turnstart::MyTurnStart my_job={p.you.job} job_used={p.you.job_is_visible} is_turn_end={false} /> }
                 },
-                PerspectiveTurnState::TurnStart { player } => html! { {format!("Waiting for {} ...", player)} },
+                PerspectiveTurnState::TurnStart { player } => html! { <p>{lang.waiting_for(&player.to_string())}</p> },
                 PerspectiveTurnState::TurnEndPhase { player } if player == &me.player => {
                     hide_all = true;
                     html! { <turnstart::MyTurnStart my_job={p.you.job} job_used={p.you.job_is_visible} is_turn_end={true} /> }
                 },
-                PerspectiveTurnState::TurnEndPhase { player } => html! { {format!("Waiting for {} to end their turn ...", player)} },
-                PerspectiveTurnState::GameOver { winner: WinningFaction::Normal(winner) } => html! { <div class="victory-text">{format!("The {:?} is victorious!", winner)}</div> },
-                PerspectiveTurnState::GameOver { winner: WinningFaction::Traitor(traitor) } => html! { <div class="victory-text">{format!("The sole victor is {traitor}!")}</div> },
+                PerspectiveTurnState::TurnEndPhase { player } => html! { <p>{lang.waiting_for(&player.to_string())}</p> },
+                PerspectiveTurnState::GameOver { winner: WinningFaction::Normal(Faction::Order) } => html! {
+                    <div class="victory-screen victory-order">
+                        <p class="victory-text">{lang.victory_order()}</p>
+                    </div>
+                },
+                PerspectiveTurnState::GameOver { winner: WinningFaction::Normal(Faction::Brotherhood) } => html! {
+                    <div class="victory-screen victory-brotherhood">
+                        <p class="victory-text">{lang.victory_brotherhood()}</p>
+                    </div>
+                },
+                PerspectiveTurnState::GameOver { winner: WinningFaction::Traitor(traitor) } => html! {
+                    <div class="victory-screen victory-loge">
+                        <p class="victory-text">{lang.victory_traitor(&traitor.to_string())}</p>
+                    </div>
+                },
                 &PerspectiveTurnState::TradePending { offerer, target, item } if target == me.player => {
                     hide_items = true;
                     html! { <trading::TradeOffer you={p.you.clone()} {offerer} item={item.unwrap()} stack_empty={p.item_stack == 0} /> }
                 }
-                PerspectiveTurnState::TradePending { offerer, target, .. } => html! { <p class="trade-text">{format!("{} is offering an item to {} ...", offerer, target)}</p> },
+                PerspectiveTurnState::TradePending { offerer, target, .. } => html! { <p class="trade-text">{lang.waiting_for_trade(&offerer.to_string(), &target.to_string())}</p> },
                 &PerspectiveTurnState::ResolvingTradeTrigger { giver, receiver, ref trigger } => html! { <trade_trigger::TradeTrigger myself={me.player} {giver} {receiver} trigger={trigger.clone()} /> },
 
                 &PerspectiveTurnState::Attacking { attacker, defender, ref state } => html! { <attacking::Attacking {attacker} {defender} myself={me.player} state={state.clone()} /> },
 
-                &PerspectiveTurnState::DoingClairvoyant { player, .. } if player != me.player => html! { <p>{format!("Waiting for the Clairvoyant ({}) to do their work ...", player)}</p> },
+                &PerspectiveTurnState::DoingClairvoyant { player, .. } if player != me.player => html! { <p>{lang.waiting_for_clairvoyant(&player.to_string())}</p> },
                 PerspectiveTurnState::DoingClairvoyant { player: _, item_stack } => html! { <clairvoyant::Clairvoyant item_stack={item_stack.clone().unwrap()} /> },
-                &PerspectiveTurnState::UnsuccessfulDiplomat { diplomat, target, .. } if diplomat != me.player => html! { <p>{format!("Waiting for the Diplomat ({}) to confirm that {} does not have the requested item ...", diplomat, target)}</p> },
-                PerspectiveTurnState::UnsuccessfulDiplomat { target, inventory, .. } => html! { <><p>{format!("Since {} does not have the requested item, you may see their inventory: {}", target, inventory.iter().flatten().map(|x| x.to_string()).collect::<Vec<_>>().join(", "))}</p><DoneLookingBtn /></> },
+                &PerspectiveTurnState::UnsuccessfulDiplomat { diplomat, target, .. } if diplomat != me.player => html! { <p>{lang.waiting_for_diplomat(&diplomat.to_string(), &target.to_string())}</p> },
+                PerspectiveTurnState::UnsuccessfulDiplomat { target, inventory, .. } => {
+                    let items_str = inventory.iter().flatten().map(|x| x.tr_name(lang)).collect::<Vec<_>>().join(", ");
+                    html! { <><p>{lang.diplomat_no_item(&target.to_string(), &items_str)}</p><DoneLookingBtn /></> }
+                },
             };
             html! {
                 <div class="hud">
@@ -210,7 +230,6 @@ fn game_ui(props: &GameUiProps) -> Html {
                 </div>
             }
         }
-        GameInfo::Spectating(_) => html! { {"Spectating is not implemented yet"} },
+        GameInfo::Spectating(s) => html! { <spectating::Spectating state={s.clone()} /> },
     }
 }
-
