@@ -796,6 +796,12 @@ impl Lang {
         }
     }
 
+    // Card / tile headers
+    pub fn game_info_card(self)   -> &'static str { self.s("Game Information",  "Spielinformationen") }
+    pub fn player_info_card(self) -> &'static str { self.s("My Information",    "Eigene Informationen") }
+    pub fn action_log_card(self)  -> &'static str { self.s("Action Log",        "Aktionslog") }
+    pub fn actions_card(self)     -> &'static str { self.s("Actions",           "Aktionen") }
+
     // ── helper ────────────────────────────────────────────────────────────────
     fn s(self, en: &'static str, de: &'static str) -> &'static str {
         match self { Lang::En => en, Lang::De => de }

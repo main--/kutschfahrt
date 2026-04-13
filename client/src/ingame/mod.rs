@@ -274,36 +274,64 @@ fn game_ui(props: &GameUiProps) -> Html {
                 <div class="hud">
                     <ContextProvider<Rc<Perspective>> context={Rc::new(p.clone())}>
                         <div class="hud-topleft">
-                            <playerlist::PlayerList
-                                selected={Some(player_selection.clone())}
-                                block_select={*block_players}
-                                active_player={active_player}
-                            />
+                            <div class="card hud-card">
+                                <div class="card-header">
+                                    <p class="card-header-title">{lang.game_info_card()}</p>
+                                </div>
+                                <div class="card-content">
+                                    <playerlist::PlayerList
+                                        selected={Some(player_selection.clone())}
+                                        block_select={*block_players}
+                                        active_player={active_player}
+                                    />
+                                    <p class="draw-pile-count">
+                                        {lang.draw_pile_label()}{": "}
+                                        if p.item_stack > 0 {
+                                            <span>{p.item_stack}</span>
+                                        } else {
+                                            <span class="draw-pile-empty" data-tooltip={lang.bags_now_count_tip()}>
+                                                {lang.empty()}
+                                            </span>
+                                        }
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                         <div class="hud-topright">
-                            <p class="my-player-name"><strong>{me.player.to_string()}</strong></p>
-                            <myfaction::MyFaction />
-                            <myjob::MyJob />
-                            <itemlist::ItemList
-                                selection={Some(item_selection.clone())}
-                                blocklist={item_blocklist}
-                            />
-                            <p class="draw-pile-count">
-                                {lang.draw_pile_label()}{": "}
-                                if p.item_stack > 0 {
-                                    <span>{p.item_stack}</span>
-                                } else {
-                                    <span class="draw-pile-empty" data-tooltip={lang.bags_now_count_tip()}>
-                                        {lang.empty()}
-                                    </span>
-                                }
-                            </p>
+                            <div class="card hud-card">
+                                <div class="card-header">
+                                    <p class="card-header-title">{lang.player_info_card()}</p>
+                                </div>
+                                <div class="card-content">
+                                    <p class="my-player-name"><strong>{me.player.to_string()}</strong></p>
+                                    <myfaction::MyFaction />
+                                    <myjob::MyJob />
+                                    <itemlist::ItemList
+                                        selection={Some(item_selection.clone())}
+                                        blocklist={item_blocklist}
+                                    />
+                                </div>
+                            </div>
                         </div>
                         <div class="hud-bottomleft">
-                            <actionlog::ActionLog />
+                            <div class="card hud-card">
+                                <div class="card-header">
+                                    <p class="card-header-title">{lang.action_log_card()}</p>
+                                </div>
+                                <div class="card-content hud-card-scroll">
+                                    <actionlog::ActionLog />
+                                </div>
+                            </div>
                         </div>
                         <div class="hud-bottomright">
-                            {body}
+                            <div class="card hud-card">
+                                <div class="card-header">
+                                    <p class="card-header-title">{lang.actions_card()}</p>
+                                </div>
+                                <div class="card-content hud-card-scroll">
+                                    {body}
+                                </div>
+                            </div>
                         </div>
                     </ContextProvider<Rc<Perspective>>>
                 </div>
