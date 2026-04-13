@@ -81,7 +81,7 @@ pub fn item_list_entry(props: &ItemListEntryProps) -> Html {
                 can_select.then_some("selectable"),
                 is_selected.then_some("selected")
             )}
-            data-tooltip={item.tr_desc(lang)}
+            data-tooltip={item.tr_tooltip(lang)}
             onclick={onclick}
         >
             { item.tr_name(lang) }

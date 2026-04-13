@@ -9,4 +9,53 @@
     <title>Kutschfahrt</title>
   </head>
   <body></body>
+  <script>
+    (function () {
+      var tip = null;
+
+      function show(target) {
+        hide();
+        var text = target.getAttribute('data-tooltip');
+        if (!text) return;
+
+        tip = document.createElement('div');
+        tip.className = 'js-tooltip';
+        tip.textContent = text;
+        document.body.appendChild(tip);
+
+        var rect = target.getBoundingClientRect();
+        var tw = tip.offsetWidth;
+        var th = tip.offsetHeight;
+        var gap = 8;
+        var margin = 8;
+
+        var left = rect.left + rect.width / 2 - tw / 2;
+        var top  = rect.top - th - gap;
+
+        // clamp horizontally
+        left = Math.max(margin, Math.min(left, window.innerWidth - tw - margin));
+        // flip below if not enough space above
+        if (top < margin) top = rect.bottom + gap;
+
+        tip.style.left = left + 'px';
+        tip.style.top  = top  + 'px';
+      }
+
+      function hide() {
+        if (tip) { tip.remove(); tip = null; }
+      }
+
+      document.addEventListener('mouseover', function (e) {
+        var el = e.target && e.target.closest && e.target.closest('[data-tooltip]');
+        if (el) show(el); else hide();
+      });
+
+      document.addEventListener('mouseout', function (e) {
+        var to = e.relatedTarget;
+        if (!to || !(to.closest && to.closest('[data-tooltip]'))) hide();
+      });
+
+      document.addEventListener('scroll', hide, true);
+    })();
+  </script>
 </html>

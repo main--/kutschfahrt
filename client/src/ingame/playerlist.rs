@@ -60,7 +60,7 @@ pub fn playerlist(PlayerListProps { selected, block_select, active_player }: &Pl
                 html! {
                     <div class={class} onclick={onclick}>
                         <div class="name">{p.player.to_string()}</div>
-                        <div class="job" data-tooltip={p.job.map(|j| j.tr_desc(lang)).unwrap_or_default()}>
+                        <div class="job" data-tooltip={p.job.map(|j| j.tr_tooltip(lang)).unwrap_or_default()}>
                             {p.job.map(|j| j.tr_name(lang).to_string()).unwrap_or_else(|| "?".to_owned())}
                         </div>
                         <div class="item_count">{p.item_count}</div>

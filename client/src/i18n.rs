@@ -9,9 +9,12 @@ impl Default for Lang {
 
 // ── Trait für Items und Jobs ──────────────────────────────────────────────────
 
-pub trait Translate {
+pub trait Translate: Copy {
     fn tr_name(self, lang: Lang) -> &'static str;
     fn tr_desc(self, lang: Lang) -> &'static str;
+    fn tr_tooltip(self, lang: Lang) -> String {
+        format!("{}\n{}", self.tr_name(lang), self.tr_desc(lang))
+    }
 }
 
 impl Translate for Item {

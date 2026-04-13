@@ -19,7 +19,7 @@ pub fn my_job(MyJobProps {}: &MyJobProps) -> Html {
         <div class="yourjob">
             {lang.your_job()}
             {" "}
-            <span data-tooltip={job.tr_desc(lang)}>{job.tr_name(lang)}</span>
+            <span data-tooltip={job.tr_tooltip(lang)}>{job.tr_name(lang)}</span>
             {format!(" ({})", revealed)}
         </div>
     }

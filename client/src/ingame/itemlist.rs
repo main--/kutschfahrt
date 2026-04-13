@@ -49,7 +49,7 @@ pub fn playerlist(ItemListProps { selection, blocklist }: &ItemListProps) -> Htm
                     let selection = selection.clone();
                     html! { <div
                         class={classes!("entry", selected, selectable)}
-                        data-tooltip={i.tr_desc(lang)}
+                        data-tooltip={i.tr_tooltip(lang)}
                         onclick={Callback::from(move |_| {
                             if let Some(selection) = &selection {
                                 if is_selected {
