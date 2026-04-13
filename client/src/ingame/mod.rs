@@ -8,7 +8,7 @@ use yew::prelude::*;
 use yew_router::hooks::use_location;
 use web_protocol::{GameCommand, GameInfo, Item, Perspective, Player, PerspectiveTurnState, WinningFaction, Faction};
 
-pub use crate::i18n::{Lang, Translate, faction_name, action_log_text};
+pub use crate::i18n::{Lang, Translate, faction_name, faction_victory_tip, action_log_text};
 
 pub struct Ingame {
     game: String,

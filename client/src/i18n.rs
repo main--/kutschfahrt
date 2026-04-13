@@ -272,6 +272,19 @@ pub fn faction_name(faction: Faction, lang: Lang) -> &'static str {
     }
 }
 
+pub fn faction_victory_tip(faction: Faction, lang: Lang) -> &'static str {
+    match lang {
+        Lang::En => match faction {
+            Faction::Order       => "🔑 Victory: all Order members together hold at least 3 Keys (Secret Bags count once the draw pile is empty).",
+            Faction::Brotherhood => "🏆 Victory: all Brotherhood members together hold at least 3 Goblets (Secret Bags count once the draw pile is empty).",
+        },
+        Lang::De => match faction {
+            Faction::Order       => "🔑 Sieg: Alle Ordensmitglieder besitzen zusammen mindestens 3 Schlüssel (Geheime Koffer zählen, wenn der Stapel leer ist).",
+            Faction::Brotherhood => "🏆 Sieg: Alle Bruderschaftsmitglieder besitzen zusammen mindestens 3 Kelche (Geheime Koffer zählen, wenn der Stapel leer ist).",
+        },
+    }
+}
+
 // ── Action-Log Strings ────────────────────────────────────────────────────────
 
 pub fn action_log_text(entry: &ActionLogEntry, lang: Lang) -> String {
