@@ -281,6 +281,7 @@ fn game_ui(props: &GameUiProps) -> Html {
                             />
                         </div>
                         <div class="hud-topright">
+                            <p class="my-player-name"><strong>{me.player.to_string()}</strong></p>
                             <myfaction::MyFaction />
                             <myjob::MyJob />
                             <itemlist::ItemList

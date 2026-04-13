@@ -271,12 +271,9 @@ pub fn action_log_text(entry: &ActionLogEntry, lang: Lang) -> String {
             Lang::En => format!("{attacker} attacked {target}."),
             Lang::De => format!("{attacker} greift {target} an."),
         },
-        ActionLogEntry::TradeTrigger { giver, receiver, item } => {
-            let iname = item.tr_name(lang);
-            match lang {
-                Lang::En => format!("{giver} passed a {iname} to {receiver}."),
-                Lang::De => format!("{giver} gibt {receiver} einen {iname} weiter."),
-            }
+        ActionLogEntry::TradeTrigger { giver, receiver, .. } => match lang {
+            Lang::En => format!("{giver} passed an item to {receiver}."),
+            Lang::De => format!("{giver} gibt {receiver} einen Gegenstand weiter."),
         },
         ActionLogEntry::DonateItem { giver, receiver } => match lang {
             Lang::En => format!("{giver} donates an item to {receiver}."),
@@ -475,6 +472,17 @@ impl Lang {
             Lang::En => format!("{} is offering you a {}", offerer, item),
             Lang::De => format!("{} bietet dir einen {} an", offerer, item),
         }
+    }
+    /// Text before the item name in the trade offer sentence
+    pub fn offering_before(self, offerer: &str) -> String {
+        match self {
+            Lang::En => format!("{} is offering you a ", offerer),
+            Lang::De => format!("{} bietet dir einen ", offerer),
+        }
+    }
+    /// Text after the item name (empty in EN, " an" in DE)
+    pub fn offering_after(self) -> &'static str {
+        self.s("", " an")
     }
     pub fn accept(self)  -> &'static str { self.s("✅ Accept",  "✅ Annehmen") }
     pub fn decline(self) -> &'static str { self.s("❌ Decline", "❌ Ablehnen") }
