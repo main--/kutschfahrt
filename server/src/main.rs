@@ -5,7 +5,8 @@ use rocket::serde::json::Json;
 use rocket::tokio::sync::broadcast::{channel, Sender, error::RecvError};
 use rocket::tokio::select;
 use rocket::response::stream::{EventStream, Event};
-use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteConnectOptions};
+use std::str::FromStr;
 
 use kutschfahrt::State as KutschfahrtState;
 use web_protocol::{GameCommand, MyState, GameInfo};
@@ -27,49 +28,41 @@ async fn me_loggedin(db: &State<SqlitePool>, l: LoggedIn) -> Result<Json<MyState
 fn me_loggedout() -> Json<MyState> { Json(MyState::LoggedOut) }
 
 
-#[rocket::get("/game/<id>")]
-async fn game_get(db: &State<SqlitePool>, id: String, l: LoggedIn) -> Result<Json<GameInfo>> {
-    let state = sqlx::query_scalar!("SELECT state FROM game_state WHERE gameid = ?", id).fetch_optional(&**db).await?;
-    let you = sqlx::query_scalar!("SELECT player_character FROM game_players WHERE gameid = ? AND steamid = ?", id, l.steamid).fetch_optional(&**db).await?;
+async fn load_game_info(db: &SqlitePool, id: &str, steamid: i64) -> GameInfo {
+    let state = sqlx::query_scalar!("SELECT state FROM game_state WHERE gameid = ?", id).fetch_optional(db).await.unwrap();
+    let you = sqlx::query_scalar!("SELECT player_character FROM game_players WHERE gameid = ? AND steamid = ?", id, steamid).fetch_optional(db).await.unwrap();
     let you = you.and_then(|x| x.parse().ok());
-    Ok(Json(match (state, you) {
+    match (state, you) {
         (None, you) => {
-            let players = sqlx::query_scalar!("SELECT player_character FROM game_players WHERE gameid = ?", id).fetch_all(&**db).await?;
+            let players = sqlx::query_scalar!("SELECT player_character FROM game_players WHERE gameid = ?", id).fetch_all(db).await.unwrap();
             let players = players.into_iter().map(|x| x.parse().unwrap()).collect();
             GameInfo::WaitingForPlayers { players, you }
         }
         (Some(s), Some(you)) => {
-            let state: KutschfahrtState = serde_json::from_str(&s)?;
+            let state: KutschfahrtState = serde_json::from_str(&s).unwrap();
             GameInfo::Game(state.perspective(you))
         }
         (Some(s), None) => {
-            let state: KutschfahrtState = serde_json::from_str(&s)?;
+            let state: KutschfahrtState = serde_json::from_str(&s).unwrap();
             GameInfo::Spectating(state.spectate())
         }
-    }))
+    }
+}
+
+#[rocket::get("/game/<id>")]
+async fn game_get(db: &State<SqlitePool>, id: String, l: Option<LoggedIn>) -> Result<Json<GameInfo>> {
+    let steamid = l.map(|l| l.steamid).unwrap_or(-1);
+    Ok(Json(load_game_info(&**db, &id, steamid).await))
 }
 
 #[rocket::get("/game/<id>/events")]
-async fn game_events(db: &State<SqlitePool>, id: String, l: LoggedIn, queue: &State<Sender<String>>, mut end: Shutdown) -> EventStream![] {
+async fn game_events(db: &State<SqlitePool>, id: String, l: Option<LoggedIn>, queue: &State<Sender<String>>, mut end: Shutdown) -> EventStream![] {
+    let steamid = l.map(|l| l.steamid).unwrap_or(-1);
     let mut rx = queue.subscribe();
     let db = (*db).clone();
     EventStream! {
         'outer: loop {
-            let state = sqlx::query_scalar!("SELECT state FROM game_state WHERE gameid = ?", id).fetch_optional(&db).await.unwrap();
-            let you = sqlx::query_scalar!("SELECT player_character FROM game_players WHERE gameid = ? AND steamid = ?", id, l.steamid).fetch_optional(&db).await.unwrap();
-            let you = you.and_then(|x| x.parse().ok());
-            let msg = match (state, you) {
-                (None, you) => {
-                    let players = sqlx::query_scalar!("SELECT player_character FROM game_players WHERE gameid = ?", id).fetch_all(&db).await.unwrap();
-                    let players = players.into_iter().map(|x| x.parse().unwrap()).collect();
-                    GameInfo::WaitingForPlayers { players, you }
-                }
-                (Some(s), Some(you)) => {
-                    let state: KutschfahrtState = serde_json::from_str(&s).unwrap();
-                    GameInfo::Game(state.perspective(you))
-                }
-                (Some(_), None) => unimplemented!("spectator mode"),
-            };
+            let msg = load_game_info(&db, &id, steamid).await;
 
             yield Event::json(&msg);
 
@@ -129,9 +122,11 @@ async fn spa_fallback(_path: std::path::PathBuf) -> NamedFile {
 }
 
 async fn create_db_pool() -> Result<SqlitePool> {
+    let opts = SqliteConnectOptions::from_str("sqlite:kutschfahrt.sqlite")?
+        .create_if_missing(true);
     let pool = SqlitePoolOptions::new()
         //.max_connections(8)
-        .connect("sqlite:kutschfahrt.sqlite").await?;
+        .connect_with(opts).await?;
     sqlx::migrate!().run(&pool).await?;
     Ok(pool)
 }
@@ -156,4 +151,3 @@ async fn rocket() -> _ {
             me_loggedout,
         ])
 }
-

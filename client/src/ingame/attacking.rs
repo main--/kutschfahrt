@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use web_protocol::{PerspectiveAttackState, Player, AttackState, Command, Job, Item, AttackSupport, Perspective, AttackWinner, inventory_limit, Buff, BuffScore, BuffSource};
 use yew::prelude::*;
-use super::{CommandButton, DoneLookingBtn, SelectItem, ItemListEntry};
+use super::{CommandButton, DoneLookingBtn, SelectItem, ItemListEntry, Lang, Translate, faction_name};
 
 #[derive(Properties, PartialEq)]
 pub struct AttackingProps {
@@ -19,24 +19,23 @@ pub fn attacking(props: &AttackingProps) -> Html {
 
     let p = use_context::<Rc<Perspective>>().unwrap();
     let me = &p.you;
-
-
+    let lang = use_context::<Lang>().unwrap_or_default();
 
     let body = match state {
-        PerspectiveAttackState::Normal(AttackState::WaitingForPriest { passed }) if passed.contains(&myself) => html! { format!("Waiting for other players to use Priest ...") },
+        PerspectiveAttackState::Normal(AttackState::WaitingForPriest { passed }) if passed.contains(&myself) => html! { <p>{lang.waiting_for_priest()}</p> },
         PerspectiveAttackState::Normal(AttackState::WaitingForPriest { .. }) => html! {
             <>
-                {"Use priest?"}
-                <CommandButton text={"Use"} command={if me.job == Job::Priest && !me.job_is_visible { Some(Command::UsePriest { priest: true }) } else { None }} />
-                <CommandButton text={"Don't"} command={Some(Command::UsePriest { priest: false })} />
+                <p>{lang.use_priest_prompt()}</p>
+                <CommandButton text={lang.use_priest()} command={if me.job == Job::Priest && !me.job_is_visible { Some(Command::UsePriest { priest: true }) } else { None }} />
+                <CommandButton text={lang.dont()} command={Some(Command::UsePriest { priest: false })} />
             </>
         },
         &PerspectiveAttackState::Normal(AttackState::PayingPriest { priest }) if myself == attacker => html! { <PayingPriest {priest} /> },
-        &PerspectiveAttackState::Normal(AttackState::PayingPriest { priest }) => html! { {format!("Waiting for {} to give an item to the Priest ({}) ...", attacker, priest)} },
+        &PerspectiveAttackState::Normal(AttackState::PayingPriest { priest }) => html! { <p>{lang.paying_priest_wait(&attacker.to_string(), &priest.to_string())}</p> },
 
         &PerspectiveAttackState::FinishResolvingCredentials { target_faction, target_job } => html! {
             <>
-                <p class="attack-text">{format!("You see that {}'s faction is {:?} and their job is {:?}.", opponent, target_faction, target_job)}</p>
+                <p class="attack-text">{lang.see_faction_job(&opponent.to_string(), faction_name(target_faction, lang), target_job.tr_name(lang))}</p>
                 <DoneLookingBtn />
             </>
         },
@@ -44,10 +43,10 @@ pub fn attacking(props: &AttackingProps) -> Html {
         PerspectiveAttackState::FinishResolvingNeedFactionIndex => {
             html! {
                 <>
-                    {"Pick a faction card to look at:"}
-                    <CommandButton text={"1"} command={Some(Command::ThreePlayerSelectFactionIndex { index: 0 })} />
-                    <CommandButton text={"2"} command={Some(Command::ThreePlayerSelectFactionIndex { index: 1 })} />
-                    <CommandButton text={"3"} command={Some(Command::ThreePlayerSelectFactionIndex { index: 2 })} />
+                    <p>{lang.pick_any_faction_card()}</p>
+                    <CommandButton text={lang.card(1)} command={Some(Command::ThreePlayerSelectFactionIndex { index: 0 })} />
+                    <CommandButton text={lang.card(2)} command={Some(Command::ThreePlayerSelectFactionIndex { index: 1 })} />
+                    <CommandButton text={lang.card(3)} command={Some(Command::ThreePlayerSelectFactionIndex { index: 2 })} />
                 </>
             }
         }
@@ -66,14 +65,14 @@ pub fn attacking(props: &AttackingProps) -> Html {
 
             html! {
                 <>
-                    <h3>{"Declaring support"}</h3>
+                    <h3>{lang.declaring_support()}</h3>
                     <AttackOverview {attacker} {defender} votes={support.clone()} />
                     {if my_turn {
                         html! {
                             <div>
-                                <CommandButton text={"Support Attacker"} command={Some(Command::DeclareSupport { support: AttackSupport::Attack })} />
-                                <CommandButton text={"Support Defender"} command={Some(Command::DeclareSupport { support: AttackSupport::Defend })} />
-                                <CommandButton text={"Abstain"} command={Some(Command::DeclareSupport { support: AttackSupport::Abstain })} />
+                                <CommandButton text={lang.support_attacker()} command={Some(Command::DeclareSupport { support: AttackSupport::Attack })} />
+                                <CommandButton text={lang.support_defender()} command={Some(Command::DeclareSupport { support: AttackSupport::Defend })} />
+                                <CommandButton text={lang.abstain()} command={Some(Command::DeclareSupport { support: AttackSupport::Abstain })} />
                             </div>
                         }
                     } else {
@@ -88,15 +87,15 @@ pub fn attacking(props: &AttackingProps) -> Html {
 
             html! {
                 <>
-                    <h3>{"Hypnotizing"}</h3>
+                    <h3>{lang.hypnotizing()}</h3>
                     <AttackOverview {attacker} {defender} votes={votes.clone()} hypnotize_btn={am_hypnotist} />
 
                     {if my_turn {
                         html! {
-                            <CommandButton text={"Don't hypnotize"} command={Some(Command::Hypnotize { target: None })} />
+                            <CommandButton text={lang.dont_hypnotize()} command={Some(Command::Hypnotize { target: None })} />
                         }
                     } else {
-                        html! { <p>{"Waiting for hypnotizer ..."}</p> }
+                        html! { <p>{lang.waiting_for_hypnotizer()}</p> }
                     }}
                 </>
             }
@@ -111,12 +110,12 @@ pub fn attacking(props: &AttackingProps) -> Html {
             if winner == myself {
                 html! {
                     <>
-                        <CommandButton text={"Truth (Faction & Job)"} command={Some(Command::ClaimReward { steal_items: false })} />
-                        <CommandButton text={"Items"} command={Some(Command::ClaimReward { steal_items: true })} />
+                        <CommandButton text={lang.truth_reward()} command={Some(Command::ClaimReward { steal_items: false })} />
+                        <CommandButton text={lang.items_reward()} command={Some(Command::ClaimReward { steal_items: true })} />
                     </>
                 }
             } else {
-                html! { <p>{format!("Waiting for {} to claim a reward ...", winner)}</p> }
+                html! { <p>{lang.waiting_for_reward(&winner.to_string())}</p> }
             }
         }
         &PerspectiveAttackState::Normal(AttackState::FinishResolving { winner, steal_items, three_player_faction_index }) => {
@@ -126,18 +125,18 @@ pub fn attacking(props: &AttackingProps) -> Html {
             };
 
             if steal_items {
-                html! { <p>{format!("Waiting for {} to steal items ...", winner)}</p> }
+                html! { <p>{lang.waiting_for_steal(&winner.to_string())}</p> }
             } else if let Some(i) = three_player_faction_index {
-                html! { <p>{format!("Waiting for {} to look at faction {} & job ...", winner, i + 1)}</p> }
+                html! { <p>{lang.waiting_for_faction_look_n(&winner.to_string(), (i + 1) as usize)}</p> }
             } else {
-                html! { <p>{format!("Waiting for {} to look at faction & job ...", winner)}</p> }
+                html! { <p>{lang.waiting_for_faction_look(&winner.to_string())}</p> }
             }
         }
     };
 
     html! {
         <>
-            <p class="attack-text">{format!("{} is attacking {}", props.attacker, props.defender)}</p>
+            <p class="attack-text">{lang.is_attacking(&props.attacker.to_string(), &props.defender.to_string())}</p>
             {body}
         </>
     }
@@ -150,16 +149,17 @@ pub struct PayingPriestProps {
 #[function_component(PayingPriest)]
 pub fn paying_priest(props: &PayingPriestProps) -> Html {
     let perspective = use_context::<Rc<Perspective>>().unwrap();
+    let lang = use_context::<Lang>().unwrap_or_default();
 
     let item = use_state(|| None);
 
     html! {
         <>
-            <p>{format!("Select an item to give to the priest ({})", props.priest)}</p>
+            <p>{lang.select_item_for_priest(&props.priest.to_string())}</p>
             <SelectItem on_change={Callback::from({ let item = item.clone(); move |i| item.set(i) })}>
                 {for perspective.you.items.iter().map(|&i| html_nested! { <ItemListEntry item={i} can_select={true} /> })}
             </SelectItem>
-            <CommandButton command={item.map(move |item| Command::PayPriest { item })} text={"Submit"} />
+            <CommandButton command={item.map(move |item| Command::PayPriest { item })} text={lang.submit()} />
         </>
     }
 }
@@ -173,6 +173,7 @@ pub struct StealItemsProps {
 pub fn steal_items(props: &StealItemsProps) -> Html {
     let &StealItemsProps { victim, ref target_items } = props;
     let perspective = use_context::<Rc<Perspective>>().unwrap();
+    let lang = use_context::<Lang>().unwrap_or_default();
 
     let item = use_state(|| None);
     let giveback = use_state(|| None);
@@ -180,14 +181,14 @@ pub fn steal_items(props: &StealItemsProps) -> Html {
 
     html! {
         <>
-            <p class="attack-text">{format!("Select an item to steal from {}.", victim)}</p>
+            <p class="attack-text">{lang.steal_item_from(&victim.to_string())}</p>
             <SelectItem on_change={Callback::from({ let item = item.clone(); move |i| item.set(i) })}>
                 {for target_items.iter().map(|&i| html_nested! { <ItemListEntry item={i} can_select={true} /> })}
             </SelectItem>
             {if need_give_back {
                 html! {
                     <>
-                        <p class="attack-text">{format!("Select an item to give back to {}.", victim)}</p>
+                        <p class="attack-text">{lang.give_back_to(&victim.to_string())}</p>
                         <SelectItem on_change={Callback::from({ let giveback = giveback.clone(); move |i| giveback.set(i) })}>
                             {for perspective.you.items.iter().map(|&i| html_nested! { <ItemListEntry item={i} can_select={true} /> })}
                         </SelectItem>
@@ -196,7 +197,7 @@ pub fn steal_items(props: &StealItemsProps) -> Html {
             } else {
                 html! {}
             }}
-            <CommandButton command={item.map(move |item| Command::StealItem { item, give_back: *giveback })} text={"Submit"} />
+            <CommandButton command={item.map(move |item| Command::StealItem { item, give_back: *giveback })} text={lang.submit()} />
         </>
     }
 }
@@ -216,6 +217,7 @@ pub struct AttackOverviewProps {
 pub fn attack_overview(props: &AttackOverviewProps) -> Html {
     let &AttackOverviewProps { attacker, defender, ref votes, ref buffs, hypnotize_btn } = props;
     let p = use_context::<Rc<Perspective>>().unwrap();
+    let lang = use_context::<Lang>().unwrap_or_default();
 
     let all_players = p.players.iter().map(|p| p.player);
     let players_twice = all_players.clone().chain(all_players);
@@ -233,33 +235,40 @@ pub fn attack_overview(props: &AttackOverviewProps) -> Html {
     html! {
         <>
             <ul>
-                <li>{format!("{} is the attacker", attacker)}</li>
+                <li>{lang.is_attacker(&attacker.to_string())}</li>
                 {for supporter_list.into_iter().map(|p| html! {
-                    <li>{format!("{}: {:?}", p, votes.get(&p).unwrap())} {if hypnotize_btn { html! { <CommandButton text={"Hypnotize"} command={Some(Command::Hypnotize { target: Some(p) })} /> } } else { html! {} }}</li>
+                    <li>{format!("{}: {:?}", p, votes.get(&p).unwrap())} {if hypnotize_btn { html! { <CommandButton text={lang.hypnotize()} command={Some(Command::Hypnotize { target: Some(p) })} /> } } else { html! {} }}</li>
                 })}
-                <li>{format!("{} is the defender", defender)}</li>
+                <li>{lang.is_defender(&defender.to_string())}</li>
             </ul>
             {if buffs.is_empty() {
                 html! {}
             } else {
                 html! {
                     <>
-                        <p>{"Active buffs:"}</p>
+                        <p>{lang.active_buffs()}</p>
                         <ul>
                             {for buffs.iter().map(|buff| html! {
-                                <li>{format!("{} uses {:?} ({})", buff.user, buff.source, buff_score(buff.raw_score))}</li>
+                                <li>{format!("{} {} ({})", buff.user, buff_source_name(&buff.source, lang), buff_score(buff.raw_score))}</li>
                             })}
                         </ul>
                     </>
                 }
             }}
-            <p>{format!("Current tally: {} vs {}", buff_score(attacking_votes), buff_score(defending_votes))}</p>
+            <p>{lang.tally(&buff_score(attacking_votes), &buff_score(defending_votes))}</p>
         </>
     }
 }
 
 fn buff_score(x: BuffScore) -> String {
     format!("{}", (x as f32) / 2.)
+}
+
+fn buff_source_name(source: &BuffSource, lang: Lang) -> String {
+    match source {
+        BuffSource::Item(item) => format!("{} ({})", lang.use_item(), item.tr_name(lang)),
+        BuffSource::Job(job)   => lang.use_job(job.tr_name(lang)),
+    }
 }
 
 #[derive(Properties, PartialEq)]
@@ -274,6 +283,7 @@ pub struct ItemsAndJobsProps {
 pub fn items_and_jobs(props: &ItemsAndJobsProps) -> Html {
     let &ItemsAndJobsProps { attacker, defender, ref votes, ref buffs, ref passed } = props;
     let p = use_context::<Rc<Perspective>>().unwrap();
+    let lang = use_context::<Lang>().unwrap_or_default();
 
     let myself = p.players[p.your_player_index].player;
     let my_turn = !passed.contains(&myself);
@@ -282,34 +292,33 @@ pub fn items_and_jobs(props: &ItemsAndJobsProps) -> Html {
 
     html! {
         <>
-            <h3>{"Items & Jobs"}</h3>
+            <h3>{lang.items_and_jobs()}</h3>
             <AttackOverview {attacker} {defender} votes={votes.clone()} buffs={buffs.clone()} />
 
             {if my_turn {
                 html! {
                     <>
-                        <p>{"Note: This interface is WIP and lets you issue invalid commands. You should at least get an error message in these cases though."}</p>
                         <SelectItem on_change={Callback::from({ let item = item.clone(); move |i| item.set(i) })}>
                             {for p.you.items.iter().map(|&i| html_nested! { <ItemListEntry item={i} can_select={true} /> })}
                         </SelectItem>
-                        <CommandButton text={"Use item"} command={item.map(move |item| Command::ItemOrJob { buff: Some(BuffSource::Item(item)), target: None })} />
+                        <CommandButton text={lang.use_item()} command={item.map(move |item| Command::ItemOrJob { buff: Some(BuffSource::Item(item)), target: None })} />
 
                         {if p.you.job == Job::PoisonMixer {
                             html! {
                                 <>
-                                    <CommandButton text={"Use job to make attacker win"} command={Some(Command::ItemOrJob { buff: Some(BuffSource::Job(p.you.job)), target: Some(attacker) })} />
-                                    <CommandButton text={"Use job to make defender win"} command={Some(Command::ItemOrJob { buff: Some(BuffSource::Job(p.you.job)), target: Some(defender) })} />
+                                    <CommandButton text={lang.make_attacker_win()} command={Some(Command::ItemOrJob { buff: Some(BuffSource::Job(p.you.job)), target: Some(attacker) })} />
+                                    <CommandButton text={lang.make_defender_win()} command={Some(Command::ItemOrJob { buff: Some(BuffSource::Job(p.you.job)), target: Some(defender) })} />
                                 </>
                             }
                         } else {
-                            html! { <CommandButton text={"Use job"} command={Some(Command::ItemOrJob { buff: Some(BuffSource::Job(p.you.job)), target: None })} /> }
+                            html! { <CommandButton text={lang.use_job(p.you.job.tr_name(lang))} command={Some(Command::ItemOrJob { buff: Some(BuffSource::Job(p.you.job)), target: None })} /> }
                         }}
 
-                        <CommandButton text={"Pass"} command={Some(Command::ItemOrJob { buff: None, target: None })} />
+                        <CommandButton text={lang.pass_items()} command={Some(Command::ItemOrJob { buff: None, target: None })} />
                     </>
                 }
             } else {
-                html! { <p>{"You have passed."}</p> }
+                html! { <p>{lang.you_passed()}</p> }
             }}
         </>
     }

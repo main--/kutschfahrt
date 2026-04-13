@@ -2,98 +2,328 @@ input {
     width: 100%;
 }
 
+// ── Main 2×2 HUD grid ─────────────────────────────────────────────────────────
 .hud {
     user-select: none;
     display: grid;
-    grid-template-columns: 1fr max-content;
+    grid-template-areas:
+        "topleft    topright"
+        "bottomleft bottomright";
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 32vh 52vh;
+    gap: 1em;
 
-    .actionlog {
-        grid-area: 1 / 2 / 100 / 2;
-        display: flex;
-        flex-direction: column;
-        align-items: end;
+    .hud-topleft    { grid-area: topleft; }
+    .hud-topright   { grid-area: topright; }
+    .hud-bottomleft { grid-area: bottomleft; }
+    .hud-bottomright {
+        grid-area: bottomright;
+
+        // All action buttons: full width, taller, left-aligned
+        .button:not(.up) {
+            width: 100%;
+            padding-top: .65em;
+            padding-bottom: .65em;
+            justify-content: flex-start;
+            margin-bottom: .4em;
+
+            &:last-child { margin-bottom: 0; }
+        }
+
+        // Wrapper for disabled buttons so tooltip still works
+        .disabled-btn-wrap {
+            display: block;
+            cursor: not-allowed;
+            margin-bottom: .4em;
+            &:last-child { margin-bottom: 0; }
+
+            .button[disabled] {
+                width: 100%;
+                pointer-events: none;
+            }
+        }
+    }
+}
+
+// ── HUD card tiles ─────────────────────────────────────────────────────────────
+.hud-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+
+    > .card-content {
+        flex: 1;
+        min-height: 0;
+        padding: .75rem;
+        overflow-y: auto;
+
+        // Scrollable inner area used for actionlog + actions pane
+        &.hud-card-scroll {
+            overflow-y: auto;
+        }
+    }
+}
+
+// ── Player list (top-left) ────────────────────────────────────────────────────
+.playerlist {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 1fr max-content max-content;
+    gap: .2em .5em;
+    padding-left: .2em;
+    padding-right: .2em;
+    margin-bottom: 1em;
+
+    .head {
+        display: contents;
+        font-weight: 800;
+    }
+    .entry {
+        display: contents;
+
+        .name { flex-grow: 1; }
+        .job  { text-align: center; }
+        .item_count {
+            font-variant-numeric: tabular-nums;
+            text-align: center;
+        }
+
+        &.selectable { cursor: pointer; }
+        &.selected .name { font-weight: 600; }
+        &.you .name::after {
+            content: ' (you)';
+            font-size: .7em;
+        }
+        &.active-turn > div {
+            background: #d4edda;
+            font-weight: 600;
+        }
+        &.active-turn .name::before {
+            content: '▶ ';
+            color: #28a745;
+            font-size: .8em;
+        }
+    }
+}
+
+// ── Item list (top-right) ─────────────────────────────────────────────────────
+.itemlist {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 1em;
+    gap: .5em;
+    flex-wrap: wrap;
+
+    .entry {
+        padding: 0 .2em;
+        border: 1px solid black;
+        &.selectable { cursor: pointer; }
+        &.selected { font-weight: 600; }
+    }
+}
+
+// ── Draw pile counter (top-right) ────────────────────────────────────────────
+.draw-pile-count {
+    font-size: .9em;
+    margin-top: .4em;
+    color: #555;
+
+    .draw-pile-empty {
+        color: #e74c3c;
+        font-weight: 600;
+        cursor: help;
+    }
+}
+
+// ── Action area (bottom-right) ────────────────────────────────────────────────
+.actionlist {
+    display: flex;
+    flex-direction: column;
+    gap: 0;          // margin-bottom on .button handles spacing
+    margin-bottom: .75em;
+}
+
+// ── Action log (bottom-left) ─────────────────────────────────────────────────
+.actionlog {
+    display: flex;
+    flex-direction: column;
+    gap: .25em;
+
+    .entry {
+        font-size: .9em;
+        line-height: 1.4;
     }
 
-    .playerlist {
-        display: grid;
-        grid-template-columns: 1fr max-content max-content;
-        gap: .2em .5em;
-        padding-left: .2em;
-        padding-right: .2em;
-        margin-bottom: 1em;
+    .game-start {
+        color: #6c757d;
+        font-style: italic;
+        margin-top: auto;
+    }
+}
 
-        width: fit-content;
+// ── Ally / target selectors (bottom-right action area) ───────────────────────
+.ally-select, .choose-diplomat {
+    display: flex;
+    flex-direction: column;
+    gap: 0;          // margin-bottom on .button handles spacing
+    margin-bottom: .5em;
+}
+
+.target-select {
+    margin-bottom: .5em;
+}
+
+// ── Clairvoyant ───────────────────────────────────────────────────────────────
+.clairvoyant {
+    .items {
         border: 1px solid black;
-        .head {
-            font-weight: 800;
-        }
-        .entry {
+        width: fit-content;
+        display: grid;
+        grid-template-columns: max-content max-content;
+        gap: .2em .5em;
+        margin-bottom: 1em;
+        .item {
             display: contents;
 
-            .name {
-                flex-grow: 1;
-            }
-            .job {
-                text-align: center;
-            }
-            .item_count {
-                font-variant-numeric: tabular-nums;
-                text-align: center;
-            }
-
-            &.selectable {
-                cursor: pointer;
-            }
-            &.selected .name {
-                //background-color: red;
-                font-weight: 600;
-            }
-            &.you .name::after {
-                content: ' (you)';
-                font-size: .7em;
+            &:nth-child(-n + 2) {
+                .up { visibility: hidden; }
+                font-weight: bold;
             }
         }
     }
-    .itemlist {
+}
+
+// ── Tooltip support ───────────────────────────────────────────────────────────
+[data-tooltip] {
+    cursor: help;
+}
+
+.js-tooltip {
+    position: fixed;
+    background: #333;
+    color: #fff;
+    padding: .35em .65em;
+    border-radius: 4px;
+    white-space: pre-wrap;        // preserves the Name\nDescription newline
+    max-width: 300px;
+    font-size: .82em;
+    line-height: 1.4;
+    z-index: 9999;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,.35);
+}
+
+// ── Rules page ───────────────────────────────────────────────────────────────
+.rules-page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 1.5em 1em 4em;
+
+    .rules-subtitle {
+        font-size: .6em;
+        font-weight: 400;
+        color: #6c757d;
+    }
+
+    .rules-section-title {
+        margin-top: 2em;
+        padding-bottom: .3em;
+        border-bottom: 2px solid #dbdbdb;
+    }
+
+    // Action blocks
+    .rules-actions {
         display: flex;
-        flex-direction: row;
+        flex-direction: column;
+        gap: 1em;
         margin-bottom: 1em;
-        gap: .5em;
-        .entry {
-            padding: 0 .2em;
-            border: 1px solid black;
-            &.selectable {
-                cursor: pointer;
-            }
-            &.selected {
-                font-weight: 600;
-            }
-        }
     }
-    .actionlist {
-        display: flex;
-        flex-direction: row;
-        gap: .5em;
+    .rules-action-card {
+        background: #f8f9fa;
+        border-left: 4px solid #48c774;
+        border-radius: 4px;
+        padding: .8em 1em;
+
+        .rules-action-title {
+            font-weight: 700;
+            font-size: 1.05em;
+            margin-bottom: .4em;
+        }
+
+        ol { margin-left: 1.2em; }
+        li { margin-bottom: .25em; }
     }
 
-    .clairvoyant {
-        .items {
-            border: 1px solid black;
-            width: fit-content;
-            display: grid;
-            grid-template-columns: max-content max-content;
-            gap: .2em .5em;
-            margin-bottom: 1em;
-            .item {
-                display: contents;
-
-                &:nth-child(-n + 2) {
-                    .up {
-                        visibility: hidden;
-                    }
-                    font-weight: bold;
-                }
-            }
+    // Job / item card grid
+    .rules-cards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: .8em;
+        margin-bottom: 1em;
+    }
+    .rules-card {
+        .card-header-title {
+            font-size: .95em;
+            background: #f5f5f5;
         }
+        .card-content {
+            padding: .75em 1em;
+            font-size: .88em;
+            line-height: 1.5;
+        }
+    }
+}
+
+// ── Victory screen ────────────────────────────────────────────────────────────
+.victory-screen {
+    padding: 2em;
+    border-radius: 8px;
+    text-align: center;
+    margin: 1em 0;
+
+    .victory-text {
+        font-size: 1.5em;
+        font-weight: 700;
+    }
+
+    &.victory-order       { background: #e8f4f8; border: 2px solid #2980b9; color: #1a5276; }
+    &.victory-brotherhood { background: #f9ebea; border: 2px solid #c0392b; color: #922b21; }
+    &.victory-loge        { background: #fdfefe; border: 2px solid #1a1a1a; color: #1a1a1a; }
+}
+
+// ── Victory confirmation dialog ───────────────────────────────────────────────
+.victory-confirm {
+    background: #fff8e1;
+    border: 2px solid #f39c12;
+    border-radius: 6px;
+    padding: 1em;
+    margin-top: .5em;
+    display: flex;
+    flex-direction: column;
+    gap: .5em;
+}
+
+// ── Spectating ────────────────────────────────────────────────────────────────
+.spectating {
+    .spectating-badge {
+        font-size: 1.2em;
+        font-weight: 600;
+        color: #555;
+        margin-bottom: .5em;
+    }
+    .spectating-turn-info {
+        margin-bottom: .5em;
+        font-style: italic;
+    }
+}
+
+// ── Language switcher ─────────────────────────────────────────────────────────
+.lang-switcher {
+    display: flex;
+    gap: .3em;
+
+    .button.is-active {
+        font-weight: 700;
+        text-decoration: underline;
     }
 }
