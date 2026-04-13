@@ -5,7 +5,8 @@ use rocket::serde::json::Json;
 use rocket::tokio::sync::broadcast::{channel, Sender, error::RecvError};
 use rocket::tokio::select;
 use rocket::response::stream::{EventStream, Event};
-use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteConnectOptions};
+use std::str::FromStr;
 
 use kutschfahrt::State as KutschfahrtState;
 use web_protocol::{GameCommand, MyState, GameInfo};
@@ -121,9 +122,11 @@ async fn spa_fallback(_path: std::path::PathBuf) -> NamedFile {
 }
 
 async fn create_db_pool() -> Result<SqlitePool> {
+    let opts = SqliteConnectOptions::from_str("sqlite:kutschfahrt.sqlite")?
+        .create_if_missing(true);
     let pool = SqlitePoolOptions::new()
         //.max_connections(8)
-        .connect("sqlite:kutschfahrt.sqlite").await?;
+        .connect_with(opts).await?;
     sqlx::migrate!().run(&pool).await?;
     Ok(pool)
 }
