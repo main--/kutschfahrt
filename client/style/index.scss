@@ -88,6 +88,15 @@ input {
     margin-bottom: .5em;
 }
 
+// ── Ally / target selectors (bottom-right action area) ───────────────────────
+.ally-select, .target-select, .choose-diplomat {
+    display: flex;
+    flex-direction: row;
+    gap: .4em;
+    flex-wrap: wrap;
+    margin-bottom: .5em;
+}
+
 // ── Clairvoyant ───────────────────────────────────────────────────────────────
 .clairvoyant {
     .items {
