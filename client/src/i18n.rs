@@ -324,6 +324,7 @@ impl Lang {
     pub fn offer_trade(self)      -> &'static str { self.s("🤝 Offer Trade",                "🤝 Tausch anbieten") }
     pub fn announce_victory(self) -> &'static str { self.s("🏆 Announce Victory",           "🏆 Sieg verkünden") }
     pub fn pass(self)             -> &'static str { self.s("⏭ Pass",                        "⏭ Passen") }
+    pub fn game_start(self)       -> &'static str { self.s("The game begins.",               "Das Spiel beginnt.") }
     pub fn use_clairvoyant(self)  -> &'static str { self.s("🔮 Use Clairvoyant",            "🔮 Hellseher einsetzen") }
     pub fn use_diplomat(self)     -> &'static str { self.s("🎭 Use Diplomat",               "🎭 Diplomat einsetzen") }
     pub fn loge_victory(self)     -> &'static str { self.s("🌟 Announce Sole Victory (Loge)", "🌟 Alleinigen Sieg verkünden (Loge)") }

@@ -15,10 +15,11 @@ pub fn actionlog(ActionLogProps {}: &ActionLogProps) -> Html {
 
     html! {
         <div class="actionlog">
-            { for perspective.action_log.iter().map(|action| {
+            { for perspective.action_log.iter().rev().map(|action| {
                 let body = action_log_text(action, lang);
                 html! { <div class="entry">{body}</div> }
             }) }
+            <div class="entry game-start">{lang.game_start()}</div>
         </div>
     }
 }

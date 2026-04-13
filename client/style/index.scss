@@ -16,7 +16,7 @@ input {
 
     .hud-topleft    { grid-area: topleft; }
     .hud-topright   { grid-area: topright; }
-    .hud-bottomleft { grid-area: bottomleft; overflow-y: auto; }
+    .hud-bottomleft { grid-area: bottomleft; }
     .hud-bottomright { grid-area: bottomright; }
 }
 
@@ -86,6 +86,30 @@ input {
     gap: .5em;
     flex-wrap: wrap;
     margin-bottom: .5em;
+}
+
+// ── Action log (bottom-left) ─────────────────────────────────────────────────
+.actionlog {
+    height: 30vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: .25em;
+    padding: .4em;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: #fafafa;
+
+    .entry {
+        font-size: .9em;
+        line-height: 1.4;
+    }
+
+    .game-start {
+        color: #6c757d;
+        font-style: italic;
+        margin-top: auto;
+    }
 }
 
 // ── Ally / target selectors (bottom-right action area) ───────────────────────
