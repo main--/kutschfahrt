@@ -59,7 +59,7 @@ pub fn playerlist(ItemListProps { selection, blocklist }: &ItemListProps) -> Htm
                                 }
                             }
                         })}
-                    >{i.tr_name(lang)}</div> }
+                    >{i.tr_emoji()}{" "}{i.tr_name(lang)}</div> }
                 })}
             </div>
         </>

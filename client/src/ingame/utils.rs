@@ -84,7 +84,7 @@ pub fn item_list_entry(props: &ItemListEntryProps) -> Html {
             data-tooltip={item.tr_tooltip(lang)}
             onclick={onclick}
         >
-            { item.tr_name(lang) }
+            { item.tr_emoji() }{ " " }{ item.tr_name(lang) }
         </div>
     }
 }

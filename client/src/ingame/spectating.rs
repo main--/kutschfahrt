@@ -46,7 +46,7 @@ fn spectator_player_list(SpectatorPlayerListProps { players, item_stack }: &Spec
                 <div class="entry">
                     <div class="name">{p.player.to_string()}</div>
                     <div class="job" data-tooltip={p.job.map(|j| j.tr_tooltip(lang)).unwrap_or_default()}>
-                        {p.job.map(|j| j.tr_name(lang).to_string()).unwrap_or_else(|| "?".to_owned())}
+                        {p.job.map(|j| format!("{} {}", j.tr_emoji(), j.tr_name(lang))).unwrap_or_else(|| "?".to_owned())}
                     </div>
                     <div class="item_count">{p.item_count}</div>
                 </div>

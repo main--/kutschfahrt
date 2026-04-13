@@ -27,7 +27,7 @@ pub fn trade_offer(props: &TradeOfferProps) -> Html {
         <div class="item-offer">
             <div class="text">
                 {lang.offering_before(&props.offerer.to_string())}
-                <span data-tooltip={props.item.tr_tooltip(lang)}><strong>{props.item.tr_name(lang)}</strong></span>
+                <span data-tooltip={props.item.tr_tooltip(lang)}><strong>{props.item.tr_emoji()}{" "}{props.item.tr_name(lang)}</strong></span>
                 {lang.offering_after()}
             </div>
             <p>{lang.select_item_hint()}</p>

@@ -13,42 +13,6 @@ const ALL_JOBS: &[Job] = &[
     Job::Diplomat, Job::Clairvoyant,
 ];
 
-fn job_emoji(job: Job) -> &'static str {
-    match job {
-        Job::Thug        => "💪",
-        Job::GrandMaster => "⚜️",
-        Job::Bodyguard   => "💂",
-        Job::Duelist     => "🤺",
-        Job::PoisonMixer => "⚗️",
-        Job::Doctor      => "🩺",
-        Job::Priest      => "🙏",
-        Job::Hypnotist   => "🌀",
-        Job::Diplomat    => "🎭",
-        Job::Clairvoyant => "🔮",
-    }
-}
-
-fn item_emoji(item: Item) -> &'static str {
-    match item {
-        Item::Key                  => "🔑",
-        Item::Goblet               => "🏆",
-        Item::BagKey               => "🧳",
-        Item::BagGoblet            => "🧳",
-        Item::BlackPearl           => "🖤",
-        Item::Dagger               => "🗡️",
-        Item::Gloves               => "🧤",
-        Item::PoisonRing           => "💍",
-        Item::CastingKnives        => "🔪",
-        Item::Whip                 => "🪢",
-        Item::Priviledge           => "📜",
-        Item::Monocle              => "🧐",
-        Item::BrokenMirror         => "🪞",
-        Item::Sextant              => "🧭",
-        Item::Coat                 => "🧥",
-        Item::Tome                 => "📖",
-        Item::CoatOfArmorOfTheLoge => "🛡️",
-    }
-}
 
 const ALL_ITEMS: &[Item] = &[
     Item::Key, Item::Goblet, Item::BagKey, Item::BagGoblet,
@@ -220,7 +184,7 @@ pub fn rules() -> Html {
                 { for ALL_JOBS.iter().map(|&job| html! {
                     <div class="card rules-card">
                         <div class="card-header">
-                            <p class="card-header-title">{job_emoji(job)}{" "}{job.tr_name(lang)}</p>
+                            <p class="card-header-title">{job.tr_emoji()}{" "}{job.tr_name(lang)}</p>
                         </div>
                         <div class="card-content">
                             <p>{job.tr_desc(lang)}</p>
@@ -239,7 +203,7 @@ pub fn rules() -> Html {
                 { for ALL_ITEMS.iter().map(|&item| html! {
                     <div class="card rules-card">
                         <div class="card-header">
-                            <p class="card-header-title">{item_emoji(item)}{" "}{item.tr_name(lang)}</p>
+                            <p class="card-header-title">{item.tr_emoji()}{" "}{item.tr_name(lang)}</p>
                         </div>
                         <div class="card-content">
                             <p>{item.tr_desc(lang)}</p>

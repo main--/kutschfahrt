@@ -12,6 +12,7 @@ impl Default for Lang {
 pub trait Translate: Copy {
     fn tr_name(self, lang: Lang) -> &'static str;
     fn tr_desc(self, lang: Lang) -> &'static str;
+    fn tr_emoji(self) -> &'static str;
     fn tr_tooltip(self, lang: Lang) -> String {
         format!("{}\n{}", self.tr_name(lang), self.tr_desc(lang))
     }
@@ -137,6 +138,28 @@ impl Translate for Item {
             },
         }
     }
+
+    fn tr_emoji(self) -> &'static str {
+        match self {
+            Item::Key                  => "🔑",
+            Item::Goblet               => "🏆",
+            Item::BagKey               => "🧳",
+            Item::BagGoblet            => "🧳",
+            Item::BlackPearl           => "🖤",
+            Item::Dagger               => "🗡️",
+            Item::Gloves               => "🧤",
+            Item::PoisonRing           => "💍",
+            Item::CastingKnives        => "🔪",
+            Item::Whip                 => "🪢",
+            Item::Priviledge           => "📜",
+            Item::Monocle              => "🧐",
+            Item::BrokenMirror         => "🪞",
+            Item::Sextant              => "🧭",
+            Item::Coat                 => "🧥",
+            Item::Tome                 => "📖",
+            Item::CoatOfArmorOfTheLoge => "🛡️",
+        }
+    }
 }
 
 impl Translate for Job {
@@ -215,6 +238,21 @@ impl Translate for Job {
                 Job::Clairvoyant =>
                     "Einmalig: Schaue den Stapel an, wähle 2 Gegenstände, mische den Stapel und lege die gewählten Gegenstände in beliebiger Reihenfolge oben auf.",
             },
+        }
+    }
+
+    fn tr_emoji(self) -> &'static str {
+        match self {
+            Job::Thug        => "💪",
+            Job::GrandMaster => "⚜️",
+            Job::Bodyguard   => "💂",
+            Job::Duelist     => "🤺",
+            Job::PoisonMixer => "⚗️",
+            Job::Doctor      => "🩺",
+            Job::Priest      => "🙏",
+            Job::Hypnotist   => "🌀",
+            Job::Diplomat    => "🎭",
+            Job::Clairvoyant => "🔮",
         }
     }
 }
