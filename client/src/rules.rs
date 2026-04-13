@@ -33,12 +33,6 @@ pub fn rules() -> Html {
                 {s(lang, "Game Rules", "Spielregeln")}
                 <span class="rules-subtitle">{" - Kutschfahrt zur Teufelsburg"}</span>
             </h1>
-            <p class="has-text-grey mb-5">
-                {s(lang,
-                    "Michael Palm & Lukas Zach - 3-10 players - Age 12+ - 30-60 min",
-                    "Michael Palm & Lukas Zach - 3-10 Spieler - Ab 12 Jahren - 30-60 Min"
-                )}
-            </p>
 
             // ── Spielidee ─────────────────────────────────────────────────────
             <h2 class="title is-4 rules-section-title">{s(lang, "Idea of the Game", "Spielidee")}</h2>
