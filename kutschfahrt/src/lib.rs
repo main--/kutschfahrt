@@ -268,10 +268,15 @@ impl State {
                                 return Err(CommandError::YouHaveAlreadyPassed);
                             }
 
-                            let mut defp = s.p.player_mut(actor);
-                            defp.use_job(Job::Priest)?;
+                            s.p.player_mut(actor).use_job(Job::Priest)?;
 
-                            TurnState::Attacking { attacker, defender, state: AttackState::PayingPriest { priest: actor } }
+                            // Rules: attacker gives an item only when holding ≥2.
+                            // Preserves the invariant that every player holds at least one item.
+                            if s.p.player(attacker).items.len() >= 2 {
+                                TurnState::Attacking { attacker, defender, state: AttackState::PayingPriest { priest: actor } }
+                            } else {
+                                TurnState::WaitingForEndTurn(attacker)
+                            }
                         },
                         Command::UsePriest { priest: false } => {
                             passed.insert(actor);
