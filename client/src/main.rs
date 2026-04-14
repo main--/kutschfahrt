@@ -12,6 +12,7 @@ use yew::prelude::*;
 use yew_router::prelude::*;
 
 use web_protocol::MyState;
+use i18n::Lang;
 
 mod i18n;
 mod ingame;
@@ -31,6 +32,7 @@ type Link = yew_router::prelude::Link<AppRoute>;
 
 struct App {
     my_state: Option<MyState>,
+    lang: Lang,
 }
 
 
@@ -38,6 +40,7 @@ enum Msg {
     GotState(MyState),
     Login,
     Logout,
+    SetLang(Lang),
 }
 
 async fn fetch_json<T: serde::de::DeserializeOwned>(path: &str) -> T {
@@ -95,7 +98,7 @@ impl Component for App {
 
     fn create(ctx: &Context<Self>) -> Self {
         ctx.link().send_future(async { Msg::GotState(fetch_json("/api/me").await) });
-        App { my_state: None }
+        App { my_state: None, lang: Lang::De }
     }
 
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
@@ -111,6 +114,9 @@ impl Component for App {
             Msg::Logout => {
                 window().location().set_pathname("/api/logout").unwrap();
             }
+            Msg::SetLang(l) => {
+                self.lang = l;
+            }
         }
         true
     }
@@ -125,35 +131,52 @@ impl Component for App {
             Some(MyState::LoggedIn { my_games }) => (my_games.clone(), true),
             _ => (vec![], false),
         };
+        let on_lang_change = ctx.link().callback(|e: web_sys::Event| {
+            let select = e.target_unchecked_into::<web_sys::HtmlSelectElement>();
+            match select.value().as_str() {
+                "en" => Msg::SetLang(Lang::En),
+                _    => Msg::SetLang(Lang::De),
+            }
+        });
         html! {
-            <BrowserRouter>
-                <nav class="navbar is-success">
-                    <div class="container">
-                        <div class="navbar-brand">
-                            <div class="navbar-item">
-                                <h3 class="title has-text-white is-4">{"Kutschfahrt"}</h3>
-                            </div>
-                        </div>
-                        <div class="navbar-menu">
-                            <div class="navbar-end">
+            <ContextProvider<Lang> context={self.lang}>
+                <BrowserRouter>
+                    <nav class="navbar is-success">
+                        <div class="container">
+                            <div class="navbar-brand">
                                 <div class="navbar-item">
-                                    {login_btn}
+                                    <h3 class="title has-text-white is-4">{"Kutschfahrt"}</h3>
+                                </div>
+                            </div>
+                            <div class="navbar-menu">
+                                <div class="navbar-end">
+                                    <div class="navbar-item">
+                                        <div class="select is-small">
+                                            <select onchange={on_lang_change}>
+                                                <option value="de" selected={self.lang == Lang::De}>{"🇩🇪 Deutsch"}</option>
+                                                <option value="en" selected={self.lang == Lang::En}>{"🇬🇧 English"}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="navbar-item">
+                                        {login_btn}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </nav>
+                    </nav>
 
-                <div class="container is-centered">
-                    {if logged_in { html! {
-                        <Switch<AppRoute>
-                            render={move |r| view_content(r, my_games.clone())}
-                        />
-                    } } else { html! {
-                        {"Please log in."}
-                    } }}
-                </div>
-            </BrowserRouter>
+                    <div class="container is-centered">
+                        {if logged_in { html! {
+                            <Switch<AppRoute>
+                                render={move |r| view_content(r, my_games.clone())}
+                            />
+                        } } else { html! {
+                            {"Please log in."}
+                        } }}
+                    </div>
+                </BrowserRouter>
+            </ContextProvider<Lang>>
         }
     }
 }
@@ -162,4 +185,3 @@ fn main() {
     set_panic_hook();
     yew::Renderer::<App>::new().render();
 }
-
