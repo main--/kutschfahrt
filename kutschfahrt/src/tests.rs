@@ -629,6 +629,32 @@ fn attack_priest() {
     assert_eq!(s.game.p.player(Player::Zacharias).items, vec![Item::Gloves, Item::Coat]);
 }
 
+/// Priest stops an attack where the attacker holds exactly one item.
+/// Per the rules, payment is only required with ≥2 items, so the turn
+/// ends immediately — preserving the invariant that every player holds
+/// at least one item.
+#[test]
+fn attack_priest_single_item() {
+    let mut s = teststate();
+    // Sarah starts with exactly 1 item (BagKey) — do not add a second one
+    s.game.p.player_mut(Player::Zacharias).job = Job::Priest;
+
+    s.apply_command(Player::Sarah, Command::InitiateAttack { player: Player::Zacharias }).unwrap();
+
+    s.apply_command(Player::Sarah,     Command::UsePriest { priest: false }).unwrap();
+    s.apply_command(Player::Gundla,    Command::UsePriest { priest: false }).unwrap();
+    s.apply_command(Player::Marie,     Command::UsePriest { priest: false }).unwrap();
+    s.apply_command(Player::Zacharias, Command::UsePriest { priest: true  }).unwrap();
+
+    // Attack stopped, but no payment — turn goes straight to WaitingForEndTurn
+    assert_eq!(s.turn, TurnState::WaitingForEndTurn(Player::Sarah));
+    assert_eq!(s.game.p.player(Player::Sarah).items,     vec![Item::BagKey]);
+    assert_eq!(s.game.p.player(Player::Zacharias).items, vec![Item::Gloves]);
+
+    s.apply_command(Player::Sarah, Command::Pass).unwrap();
+    assert_eq!(s.turn, TurnState::WaitingForQuickblink(Player::Gundla));
+}
+
 #[test]
 fn attack_poison_mixer() {
     let mut s = teststate();
