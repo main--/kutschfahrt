@@ -45,7 +45,7 @@ impl<T: PartialEq + Copy + ToString + 'static> Component for SimpleDropdown<T> {
         }
     }
 
-    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+    fn changed(&mut self, ctx: &Context<Self>, _props: &SimpleDropdownProps<T>) -> bool {
         match self.last_selection {
             Some(x) if !ctx.props().options.contains(&x) => {
                 ctx.link().send_message(0usize);

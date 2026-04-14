@@ -1,6 +1,7 @@
 use yew::prelude::*;
 use web_protocol::{Player, Item, PlayerState, Command};
 
+use crate::ingame::itemlist::{ItemList, ItemWithIndex};
 use crate::ingame::CommandButton;
 
 #[derive(Properties, PartialEq)]
@@ -12,33 +13,28 @@ pub struct TradeOfferProps {
 }
 #[function_component(TradeOffer)]
 pub fn trade_offer(props: &TradeOfferProps) -> Html {
-    let item = use_state(|| None);
+    let selection = ItemWithIndex::use_new();
+    let reject = match props.item {
+        Item::BlackPearl | Item::BrokenMirror => None,
+        _ => Some(Command::RejectTrade),
+    };
+
+    let forbidden_combo = vec![Item::BagGoblet, Item::BagKey];
+    let blocklist = if forbidden_combo.contains(&props.item) {
+        forbidden_combo
+    } else {
+        Vec::new()
+    };
+
+    let item = selection.item();
+
     html! {
         <div class="item-offer">
-            <div class="itemlist">
-                {for props.you.items.iter().map(|&i| {
-                    let is_selected = *item == Some(i);
-                    let selected = if *item == Some(i) { Some("selected") } else { None };
-                    // TODO: letztes hemd (lol). anything else?
-                    let forbidden_combo = [Item::BagGoblet, Item::BagKey];
-                    let can_select = props.stack_empty || !(forbidden_combo.contains(&i) && forbidden_combo.contains(&props.item));
-                    let selectable = if can_select { Some("selectable") } else { None };
-                    let item = item.clone();
-                    html! { <div class={classes!("entry", selected, selectable)} onclick={Callback::from(move |_| {
-                        if can_select {
-                            if is_selected {
-                                item.set(None);
-                            } else {
-                                item.set(Some(i));
-                            }
-                        }
-                    })}>{format!("{:?}", i)}</div> }
-                })}
-            </div>
+            <ItemList {selection} {blocklist} />
 
-            <div class="text">{format!("{} is offering you a {:?}", props.offerer, props.item)}</div>
+            <div class="text">{format!("{} is offering you a {}", props.offerer, props.item)}</div>
             <CommandButton class="is-green" text={"Accept"} command={item.map(|item| Command::AcceptTrade { item })} />
-            <CommandButton class="is-red" text={"Decline"} command={Some(Command::RejectTrade)} />
+            <CommandButton class="is-red" text={"Decline"} command={reject} />
         </div>
     }
 }

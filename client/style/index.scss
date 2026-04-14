@@ -4,36 +4,95 @@ input {
 
 .hud {
     user-select: none;
+    display: grid;
+    grid-template-columns: 1fr max-content;
+
+    .actionlog {
+        grid-area: 1 / 2 / 100 / 2;
+        display: flex;
+        flex-direction: column;
+        align-items: end;
+    }
+
     .playerlist {
-        max-width: 15em;
+        display: grid;
+        grid-template-columns: 1fr max-content max-content;
+        gap: .2em .5em;
+        padding-left: .2em;
+        padding-right: .2em;
+        margin-bottom: 1em;
+
+        width: fit-content;
         border: 1px solid black;
+        .head {
+            font-weight: 800;
+        }
         .entry {
-            display: flex;
-            flex-direction: row;
-            gap: 10px;
+            display: contents;
 
             .name {
                 flex-grow: 1;
+            }
+            .job {
+                text-align: center;
+            }
+            .item_count {
+                font-variant-numeric: tabular-nums;
+                text-align: center;
             }
 
             &.selectable {
                 cursor: pointer;
             }
-            &.selected {
-                background-color: red;
+            &.selected .name {
+                //background-color: red;
+                font-weight: 600;
+            }
+            &.you .name::after {
+                content: ' (you)';
+                font-size: .7em;
             }
         }
     }
     .itemlist {
         display: flex;
         flex-direction: row;
+        margin-bottom: 1em;
+        gap: .5em;
         .entry {
+            padding: 0 .2em;
             border: 1px solid black;
             &.selectable {
                 cursor: pointer;
             }
             &.selected {
-                background-color: red;
+                font-weight: 600;
+            }
+        }
+    }
+    .actionlist {
+        display: flex;
+        flex-direction: row;
+        gap: .5em;
+    }
+
+    .clairvoyant {
+        .items {
+            border: 1px solid black;
+            width: fit-content;
+            display: grid;
+            grid-template-columns: max-content max-content;
+            gap: .2em .5em;
+            margin-bottom: 1em;
+            .item {
+                display: contents;
+
+                &:nth-child(-n + 2) {
+                    .up {
+                        visibility: hidden;
+                    }
+                    font-weight: bold;
+                }
             }
         }
     }

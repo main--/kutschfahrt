@@ -41,6 +41,16 @@ pub fn attacking(props: &AttackingProps) -> Html {
             </>
         },
         PerspectiveAttackState::FinishResolvingItems { target_items } => html! { <StealItems target_items={target_items.clone()} victim={opponent} /> },
+        PerspectiveAttackState::FinishResolvingNeedFactionIndex => {
+            html! {
+                <>
+                    {"Pick a faction card to look at:"}
+                    <CommandButton text={"1"} command={Some(Command::ThreePlayerSelectFactionIndex { index: 0 })} />
+                    <CommandButton text={"2"} command={Some(Command::ThreePlayerSelectFactionIndex { index: 1 })} />
+                    <CommandButton text={"3"} command={Some(Command::ThreePlayerSelectFactionIndex { index: 2 })} />
+                </>
+            }
+        }
 
         PerspectiveAttackState::Normal(AttackState::DeclaringSupport(support)) => {
             let all_players = p.players.iter().map(|p| p.player);
@@ -109,7 +119,7 @@ pub fn attacking(props: &AttackingProps) -> Html {
                 html! { <p>{format!("Waiting for {} to claim a reward ...", winner)}</p> }
             }
         }
-        &PerspectiveAttackState::Normal(AttackState::FinishResolving { winner, steal_items }) => {
+        &PerspectiveAttackState::Normal(AttackState::FinishResolving { winner, steal_items, three_player_faction_index }) => {
             let winner = match winner {
                 AttackWinner::Attacker => attacker,
                 AttackWinner::Defender => defender,
@@ -117,6 +127,8 @@ pub fn attacking(props: &AttackingProps) -> Html {
 
             if steal_items {
                 html! { <p>{format!("Waiting for {} to steal items ...", winner)}</p> }
+            } else if let Some(i) = three_player_faction_index {
+                html! { <p>{format!("Waiting for {} to look at faction {} & job ...", winner, i + 1)}</p> }
             } else {
                 html! { <p>{format!("Waiting for {} to look at faction & job ...", winner)}</p> }
             }

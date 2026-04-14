@@ -42,7 +42,10 @@ async fn game_get(db: &State<SqlitePool>, id: String, l: LoggedIn) -> Result<Jso
             let state: KutschfahrtState = serde_json::from_str(&s)?;
             GameInfo::Game(state.perspective(you))
         }
-        (Some(_), None) => unimplemented!("spectator mode"),
+        (Some(s), None) => {
+            let state: KutschfahrtState = serde_json::from_str(&s)?;
+            GameInfo::Spectating(state.spectate())
+        }
     }))
 }
 
@@ -91,7 +94,7 @@ async fn game_post(cmd: Json<GameCommand>, db: &State<SqlitePool>, id: String, l
     let state = sqlx::query_scalar!("SELECT state FROM game_state WHERE gameid = ?", id).fetch_optional(&**db).await?;
     match (cmd.into_inner(), state) {
         (GameCommand::JoinGame(player), None) => {
-            let player = player.to_string();
+            let player = format!("{player:?}");
             sqlx::query!("INSERT INTO game_players(gameid, steamid, player_character) VALUES (?, ?, ?)", id, l.steamid, player).execute(&**db).await?;
         }
         (GameCommand::LeaveGame, None) => {
@@ -141,6 +144,7 @@ async fn rocket() -> _ {
         .mount("/", FileServer::from("../client/dist"))
         .mount("/", rocket::routes![spa_fallback])
         .mount("/api/", rocket::routes![
+            login::fake_login, login::fake_login2,
 
             login::login,
             login::login_cb,

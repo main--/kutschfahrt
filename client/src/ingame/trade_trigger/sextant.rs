@@ -8,27 +8,24 @@ use crate::ingame::CommandButton;
 
 #[derive(Properties, PartialEq)]
 pub struct ResolveSextantProps {
-    pub is_first_item: bool,
-    pub offerer: Player,
-    pub target: Player,
+    pub responsible_player: Player,
     pub item_selections: HashMap<Player, Item>,
     pub is_forward: Option<bool>,
 }
 
 #[function_component(ResolveSextant)]
 pub fn resolve_sextant(props: &ResolveSextantProps) -> Html {
-    let responsible_player = if props.is_first_item { props.offerer } else { props.target };
+    let ResolveSextantProps { responsible_player, item_selections, is_forward, .. } = props;
     let p = use_context::<Rc<Perspective>>().unwrap();
     let me = &p.players[p.your_player_index];
-    let ResolveSextantProps { item_selections, is_forward, .. } = props;
 
     let item = use_state(|| None);
 
     match is_forward {
-        None if responsible_player == me.player => html! {
+        None if *responsible_player == me.player => html! {
             <div class="sextant-lr">
-                <CommandButton command={Some(Command::SetSextantDirection { forward: true })} text={"Left"} />
-                <CommandButton command={Some(Command::SetSextantDirection { forward: false })} text={"Right"} />
+                <CommandButton command={Some(Command::SetSextantDirection { forward: false })} text={"Left"} />
+                <CommandButton command={Some(Command::SetSextantDirection { forward: true })} text={"Right"} />
             </div>
         },
         None => html! { <p class="sextant-text">{format!("Waiting for {} to determine the direction.", responsible_player)}</p> },

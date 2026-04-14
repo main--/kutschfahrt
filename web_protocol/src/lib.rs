@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
 use serde::{Serialize, Deserialize};
 
 
@@ -13,6 +14,8 @@ pub enum MyState {
 pub enum GameInfo {
     WaitingForPlayers { players: Vec<Player>, you: Option<Player> },
     Game(Perspective),
+    /// when a game has already started and you're not part of it
+    Spectating(SpectatorPerspective),
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum GameCommand {
@@ -69,6 +72,7 @@ pub struct Perspective {
     pub players: Vec<PerspectivePlayer>,
 
     pub item_stack: usize,
+    pub action_log: Vec<ActionLogEntry>,
     pub turn: PerspectiveTurnState,
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -80,27 +84,48 @@ pub struct PerspectivePlayer {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum PerspectiveTurnState {
     TurnStart { player: Player },
-    GameOver { winner: Faction },
+    TurnEndPhase { player: Player },
+    DoingClairvoyant { player: Player, item_stack: Option<Vec<Item>> },
+    UnsuccessfulDiplomat { diplomat: Player, target: Player, inventory: Option<Vec<Item>> },
+
+    GameOver { winner: WinningFaction },
     TradePending { offerer: Player, target: Player, item: Option<Item> },
-    ResolvingTradeTrigger { offerer: Player, target: Player, is_first_item: bool, trigger: PerspectiveTradeTriggerState }, // for sextant, item selections are cleared
+    ResolvingTradeTrigger { giver: Player, receiver: Player, trigger: PerspectiveTradeTriggerState }, // for sextant, item selections are cleared
     Attacking { attacker: Player, defender: Player, state: PerspectiveAttackState }, // AttackState info ís always public
     DonatingItem { donor: Player },
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum PerspectiveAttackState {
     Normal(AttackState),
+    FinishResolvingNeedFactionIndex,
     FinishResolvingCredentials { target_faction: Faction, target_job: Job },
     FinishResolvingItems { target_items: Vec<Item> },
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub enum FactionKind {
+    Normal(Faction),
+    ThreePlayer([Faction; 3]),
+}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct PlayerState {
-    pub faction: Faction,
+    pub faction: FactionKind,
     pub job: Job,
     pub job_is_visible: bool,
     pub items: Vec<Item>,
 }
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub struct SpectatorPerspective {
+    pub players: Vec<PerspectivePlayer>,
+
+    pub item_stack: usize,
+    pub action_log: Vec<ActionLogEntry>,
+    pub turn: PerspectiveTurnState,
+}
+
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Item {
     Key,
@@ -120,6 +145,29 @@ pub enum Item {
     Coat, // trigger: exchange occupation
     Tome, // trigger: trade occupation
     CoatOfArmorOfTheLoge
+}
+impl Display for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Item::Key => "Key",
+            Item::Goblet => "Goblet",
+            Item::BagKey => "Bag (Key)",
+            Item::BagGoblet => "Bag (Goblet)",
+            Item::BlackPearl => "Black Pearl",
+            Item::Dagger => "Dagger",
+            Item::Gloves => "Gloves",
+            Item::PoisonRing => "Poison Ring",
+            Item::CastingKnives => "Casting Knives",
+            Item::Whip => "Whip",
+            Item::Priviledge => "Priviledge",
+            Item::Monocle => "Monocle",
+            Item::BrokenMirror => "Broken Mirror",
+            Item::Sextant => "Sextant",
+            Item::Coat => "Coat",
+            Item::Tome => "Tome",
+            Item::CoatOfArmorOfTheLoge => "Coat of Armor of the Loge",
+        })
+    }
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Job {
@@ -153,42 +201,61 @@ impl std::fmt::Display for Job {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
+pub enum WinningFaction {
+    Normal(Faction),
+    /// Loge
+    Traitor(Player),
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum Faction {
     Order,
     Brotherhood,
-    //Traitor,
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TurnState {
     WaitingForQuickblink(Player),
-    GameOver { winner: Faction },
+    /// for end-of-turn clairvoyant and diplomat
+    WaitingForEndTurn(Player),
+
+    // job actions are currently only possible at turn start
+    DoingClairvoyant { clairvoyant: Player, next: Player },
+    UnsuccessfulDiplomat { diplomat: Player, target: Player },
+
+    GameOver { winner: WinningFaction },
     TradePending {
         offerer: Player,
         target: Player,
         item: Item,
     },
     ResolvingTradeTrigger {
-        offerer: Player,
-        target: Player,
-        next_item: Option<Item>,
+        giver: Player,
+        receiver: Player,
         trigger: TradeTriggerState,
+        next_state: FollowupState,
     },
     Attacking {
         attacker: Player,
         defender: Player,
         state: AttackState,
     },
-    DonatingItem { donor: Player, followup: ItemDonationFollowup },
+    DonatingItem { donor: Player, followup: FollowupState },
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
-pub enum ItemDonationFollowup {
-    NextPlayer(Player),
+pub enum FollowupState {
+    State(Box<TurnState>),
     TradeTriggers {
-        offerer: Player,
-        target: Player,
+        giver: Player,
+        receiver: Player,
         item: Item,
+        next_state: Box<TurnState>,
     },
+}
+impl FollowupState {
+    pub fn end_phase(player: Player) -> Self {
+        FollowupState::State(Box::new(TurnState::WaitingForEndTurn(player)))
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -208,6 +275,7 @@ pub enum AttackState {
     FinishResolving {
         winner: AttackWinner,
         steal_items: bool,
+        three_player_faction_index: Option<usize>,
     },
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
@@ -250,7 +318,7 @@ impl AttackSupport {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum PerspectiveTradeTriggerState {
     Priviledge { items: Option<Vec<Item>> },
-    Monocle { faction: Option<Faction> },
+    Monocle { faction: Option<Faction>, three_player_faction_index: Option<usize> },
     Coat { available_jobs: Option<Vec<Job>> },
     Sextant { item_selections: HashMap<Player, Item>, is_forward: Option<bool> },
 }
@@ -258,7 +326,7 @@ pub enum PerspectiveTradeTriggerState {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TradeTriggerState {
     Priviledge,
-    Monocle,
+    Monocle { three_player_faction_index: Option<usize> },
     Coat,
     Sextant { item_selections: HashMap<Player, Item>, is_forward: Option<bool> },
 }
@@ -267,7 +335,14 @@ pub enum TradeTriggerState {
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum Command {
     Pass,
-    AnnounceVictory { teammates: Vec<Player> },
+    AnnounceVictory { flavor: VictoryFlavor },
+
+    UseDiplomat { target: Player, item: Item, return_item: Item },
+    UseClairvoyant,
+    ClairvoyantSetItems {
+        /// always exactly two items unless the stack has fewer than two items in total
+        top_items: Vec<Item>
+    },
 
     OfferTrade { target: Player, item: Item },
     RejectTrade,
@@ -290,6 +365,15 @@ pub enum Command {
 
     DonateItem { target: Player, item: Item },
     DoneLookingAtThings,
+
+    ThreePlayerSelectFactionIndex { index: usize },
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum VictoryFlavor {
+    Normal { teammates: Vec<Player> },
+    Loge,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -322,6 +406,28 @@ impl BuffSource {
 
 
 impl PlayerState {
+    pub fn effective_faction(&self) -> Faction {
+        match &self.faction {
+            FactionKind::Normal(faction) => *faction,
+            FactionKind::ThreePlayer(factions) => {
+                if factions.iter().filter(|&&x| x == Faction::Order).count() >= 2 {
+                    Faction::Order
+                } else {
+                    Faction::Brotherhood
+                }
+            }
+        }
+    }
+
+    pub fn faction_by_index(&self, idx: Option<usize>) -> Option<Faction> {
+        match (&self.faction, idx) {
+            (&FactionKind::Normal(faction), None) => Some(faction),
+            (&FactionKind::Normal(_), Some(_)) => panic!("Faction index specified but this is not a 3-player game"),
+            (&FactionKind::ThreePlayer(_), None) => None,
+            (&FactionKind::ThreePlayer(factions), Some(i)) => Some(factions[i]),
+        }
+    }
+
     pub fn use_job(&mut self, job: Job) -> Result<(), JobUseError> {
         if self.job == job && !(self.job_is_visible && job.once()) {
             self.job_is_visible = true;
@@ -353,3 +459,18 @@ pub fn inventory_limit(players: usize) -> usize {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum ActionLogEntry {
+    Pass { actor: Player },
+    AnnounceVictory { actor: Player },
+
+    UseDiplomat { actor: Player, target: Player, item: Item, success: bool },
+    UseClairvoyant { actor: Player },
+
+    TradeOffer { offerer: Player, target: Player, accepted: bool },
+    Attack { attacker: Player, target: Player },
+
+    TradeTrigger { giver: Player, receiver: Player, item: Item },
+    DonateItem { giver: Player, receiver: Player },
+}

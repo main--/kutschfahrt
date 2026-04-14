@@ -6,6 +6,8 @@ use kutschfahrt::*;
 use web_protocol::*;
 
 fn main() {
+    //println!("{}", serde_json::to_string(&GameCommand::Command(Command::DeclareSupport { support: AttackSupport::Attack })).unwrap());
+    println!("{}", serde_json::to_string(&GameCommand::Command(Command::PickNewJob { job: Job::Clairvoyant })).unwrap());
     /*
     println!("{}", serde_json::to_string(&Command::Pass).unwrap());
     println!("{}", serde_json::to_string(&Command::AnnounceVictory { teammates: vec![Player::Gundla, Player::Sarah] }).unwrap());
@@ -45,10 +47,12 @@ fn main() {
     state.apply_command(Player::Zacharias, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
 
     state.apply_command(Player::Gundla, Command::OfferTrade { target: Player::Sarah, item: Item::BagGoblet }).unwrap();
-    state.apply_command(Player::Sarah, Command::RejectTrade).unwrap();
+    state.apply_command(Player::Sarah, Command::AcceptTrade { item: Item::PoisonRing }).unwrap();
+    println!("{:#?}", state);
+    //state.apply_command(Player::Sarah, Command::RejectTrade).unwrap();
 
-    state.apply_command(Player::Marie, Command::AnnounceVictory { teammates: vec![] }).unwrap();
+    state.apply_command(Player::Marie, Command::AnnounceVictory { flavor: VictoryFlavor::Normal { teammates: vec![] } }).unwrap();
 
-    assert_eq!(state.turn, TurnState::GameOver { winner: Faction::Order });
+    assert_eq!(state.turn, TurnState::GameOver { winner: WinningFaction::Normal(Faction::Order) });
 }
 
