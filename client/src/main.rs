@@ -13,6 +13,7 @@ use yew_router::prelude::*;
 
 use web_protocol::MyState;
 
+mod i18n;
 mod ingame;
 
 
