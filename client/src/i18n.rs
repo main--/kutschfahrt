@@ -1,4 +1,39 @@
 use web_protocol::{Item, Job, Faction, ActionLogEntry};
+use fluent_bundle::{FluentBundle, FluentResource};
+use unic_langid::LanguageIdentifier;
+
+thread_local! {
+    static DE_BUNDLE: FluentBundle<FluentResource> = init_bundle("de", include_str!("locales/de.ftl"));
+    static EN_BUNDLE: FluentBundle<FluentResource> = init_bundle("en", include_str!("locales/en.ftl"));
+}
+
+fn init_bundle(lang: &str, source: &'static str) -> FluentBundle<FluentResource> {
+    let langid: LanguageIdentifier = lang.parse().expect("invalid langid");
+    let res = FluentResource::try_new(source.to_owned()).expect("FTL parse error");
+    let mut bundle = FluentBundle::new(vec![langid]);
+    bundle.add_resource(res).expect("failed to add FTL resource");
+    bundle
+}
+
+fn ftl_msg(bundle: &FluentBundle<FluentResource>, key: &str) -> String {
+    let msg = bundle.get_message(key)
+        .unwrap_or_else(|| panic!("missing FTL message: {key}"));
+    let val = msg.value()
+        .unwrap_or_else(|| panic!("FTL message has no value: {key}"));
+    let mut errs = vec![];
+    bundle.format_pattern(val, None, &mut errs).into_owned()
+}
+
+fn lookup(lang: Lang, key: &str) -> String {
+    match lang {
+        Lang::De => DE_BUNDLE.with(|b| ftl_msg(b, key)),
+        Lang::En => EN_BUNDLE.with(|b| ftl_msg(b, key)),
+    }
+}
+
+fn lookup_emoji(key: &str) -> String {
+    DE_BUNDLE.with(|b| ftl_msg(b, key))
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Lang { De, En }
@@ -10,250 +45,126 @@ impl Default for Lang {
 // ── Trait für Items und Jobs ──────────────────────────────────────────────────
 
 pub trait Translate: Copy {
-    fn tr_name(self, lang: Lang) -> &'static str;
-    fn tr_desc(self, lang: Lang) -> &'static str;
-    fn tr_emoji(self) -> &'static str;
+    fn tr_name(self, lang: Lang) -> String;
+    fn tr_desc(self, lang: Lang) -> String;
+    fn tr_emoji(self) -> String;
     fn tr_tooltip(self, lang: Lang) -> String {
         format!("{}\n{}", self.tr_name(lang), self.tr_desc(lang))
     }
 }
 
 impl Translate for Item {
-    fn tr_name(self, lang: Lang) -> &'static str {
-        match lang {
-            Lang::En => match self {
-                Item::Key              => "Key",
-                Item::Goblet           => "Goblet",
-                Item::BagKey           => "Secret Bag (Key)",
-                Item::BagGoblet        => "Secret Bag (Goblet)",
-                Item::BlackPearl       => "Black Pearl",
-                Item::Dagger           => "Dagger",
-                Item::Gloves           => "Gloves",
-                Item::PoisonRing       => "Poison Ring",
-                Item::CastingKnives    => "Casting Knives",
-                Item::Whip             => "Whip",
-                Item::Priviledge       => "Privilege",
-                Item::Monocle          => "Monocle",
-                Item::BrokenMirror     => "Broken Mirror",
-                Item::Sextant          => "Sextant",
-                Item::Coat             => "Coat",
-                Item::Tome             => "Tome",
-                Item::CoatOfArmorOfTheLoge => "Coat of Armor of the Loge",
-            },
-            Lang::De => match self {
-                Item::Key              => "Schlüssel",
-                Item::Goblet           => "Kelch",
-                Item::BagKey           => "Geheimer Koffer (Schlüssel)",
-                Item::BagGoblet        => "Geheimer Koffer (Kelch)",
-                Item::BlackPearl       => "Schwarze Perle",
-                Item::Dagger           => "Dolch",
-                Item::Gloves           => "Handschuhe",
-                Item::PoisonRing       => "Giftring",
-                Item::CastingKnives    => "Wurfmesser",
-                Item::Whip             => "Peitsche",
-                Item::Priviledge       => "Freibrief",
-                Item::Monocle          => "Monokel",
-                Item::BrokenMirror     => "Zerbrochener Spiegel",
-                Item::Sextant          => "Sextant",
-                Item::Coat             => "Mantel",
-                Item::Tome             => "Foliant",
-                Item::CoatOfArmorOfTheLoge => "Wappen der Loge",
-            },
-        }
+    fn tr_name(self, lang: Lang) -> String {
+        lookup(lang, match self {
+            Item::Key                  => "item-key-name",
+            Item::Goblet               => "item-goblet-name",
+            Item::BagKey               => "item-bag-key-name",
+            Item::BagGoblet            => "item-bag-goblet-name",
+            Item::BlackPearl           => "item-black-pearl-name",
+            Item::Dagger               => "item-dagger-name",
+            Item::Gloves               => "item-gloves-name",
+            Item::PoisonRing           => "item-poison-ring-name",
+            Item::CastingKnives        => "item-casting-knives-name",
+            Item::Whip                 => "item-whip-name",
+            Item::Priviledge           => "item-priviledge-name",
+            Item::Monocle              => "item-monocle-name",
+            Item::BrokenMirror         => "item-broken-mirror-name",
+            Item::Sextant              => "item-sextant-name",
+            Item::Coat                 => "item-coat-name",
+            Item::Tome                 => "item-tome-name",
+            Item::CoatOfArmorOfTheLoge => "item-coat-of-armor-name",
+        })
     }
 
-    fn tr_desc(self, lang: Lang) -> &'static str {
-        match lang {
-            Lang::En => match self {
-                Item::Key =>
-                    "The Order wins if they collectively hold at least 3 Keys.",
-                Item::Goblet =>
-                    "The Brotherhood wins if they collectively hold at least 3 Goblets.",
-                Item::BagKey =>
-                    "Trade it: draw one item from the pile. Cannot be traded for the other bag. Becomes a Key when the draw pile is empty.",
-                Item::BagGoblet =>
-                    "Trade it: draw one item from the pile. Cannot be traded for the other bag. Becomes a Goblet when the draw pile is empty.",
-                Item::BlackPearl =>
-                    "Must always be accepted in a trade. Holder cannot proclaim victory. (4–10 players only)",
-                Item::Dagger =>
-                    "As attacker, +1 to your result. Does not count when supporting.",
-                Item::Gloves =>
-                    "As defender, +1 to your result. Does not count when supporting.",
-                Item::PoisonRing =>
-                    "As attacker or defender, you win a tie.",
-                Item::CastingKnives =>
-                    "When you support an attacker, they get +1 to their result.",
-                Item::Whip =>
-                    "When you support a defender, they get +1 to their result.",
-                Item::Priviledge =>
-                    "Trade it: look at all of your trading partner's items.",
-                Item::Monocle =>
-                    "Trade it: look at your trading partner's faction card.",
-                Item::BrokenMirror =>
-                    "Must always be accepted in a trade. The item received in exchange has no trade effect.",
-                Item::Sextant =>
-                    "Trade it: choose a direction. All players simultaneously pass one item to their neighbor in that direction.",
-                Item::Coat =>
-                    "Trade it: pick a new job from the remaining pile. Return your old job. Once-only jobs are reset. (3–9 players only)",
-                Item::Tome =>
-                    "Trade it: swap jobs with your trading partner. Face-up jobs are turned face-down and may be used again.",
-                Item::CoatOfArmorOfTheLoge =>
-                    "If you hold this and 3 keys/goblets in any combination, proclaim sole victory — no allies needed. Drink of Power cards do not count.",
-            },
-            Lang::De => match self {
-                Item::Key =>
-                    "Der Orden kann den Sieg verkünden, wenn er mindestens 3 Schlüssel besitzt.",
-                Item::Goblet =>
-                    "Die Bruderschaft kann den Sieg verkünden, wenn sie mindestens 3 Kelche besitzt.",
-                Item::BagKey =>
-                    "Tauschst du ihn weiter, darfst du einen Gegenstand vom Stapel ziehen. Darf nicht gegen einen anderen Koffer getauscht werden. Gilt als Schlüssel, wenn der Stapel leer ist.",
-                Item::BagGoblet =>
-                    "Tauschst du ihn weiter, darfst du einen Gegenstand vom Stapel ziehen. Darf nicht gegen einen anderen Koffer getauscht werden. Gilt als Kelch, wenn der Stapel leer ist.",
-                Item::BlackPearl =>
-                    "Muss im Tausch angenommen werden. Wer sie besitzt, darf den Sieg nicht verkünden. (Nur für 4–10 Spieler)",
-                Item::Dagger =>
-                    "Als Angreifer erhältst du +1 auf dein Kampfergebnis. Gilt nicht beim Unterstützen.",
-                Item::Gloves =>
-                    "Als Verteidiger erhältst du +1 auf dein Kampfergebnis. Gilt nicht beim Unterstützen.",
-                Item::PoisonRing =>
-                    "Als Angreifer oder Verteidiger gewinnst du auch bei einem Patt.",
-                Item::CastingKnives =>
-                    "Unterstützt du einen Angreifer, erhält dieser +1 auf sein Kampfergebnis.",
-                Item::Whip =>
-                    "Unterstützt du einen Verteidiger, erhält dieser +1 auf sein Kampfergebnis.",
-                Item::Priviledge =>
-                    "Tauschst du ihn weiter, darfst du alle Gegenstände deines Tauschpartners ansehen.",
-                Item::Monocle =>
-                    "Tauschst du es weiter, darfst du die Gesellschaft deines Tauschpartners ansehen.",
-                Item::BrokenMirror =>
-                    "Muss im Tausch angenommen werden. Der erhaltene Gegenstand wirkt sich beim Tausch nicht aus.",
-                Item::Sextant =>
-                    "Tauschst du ihn weiter, bestimme eine Richtung. Alle geben gleichzeitig einen Gegenstand ihrer Wahl an den Nachbarn in dieser Richtung weiter.",
-                Item::Coat =>
-                    "Tauschst du ihn weiter, wähle einen neuen Beruf aus dem Stapel. Lege deinen alten Beruf zurück. Einmalige Berufe werden zurückgesetzt. (Nur für 3–9 Spieler)",
-                Item::Tome =>
-                    "Tauschst du ihn weiter, tauscht du mit deinem Tauschpartner die Berufe. Aufgedeckte Berufe werden wieder verdeckt und können erneut genutzt werden.",
-                Item::CoatOfArmorOfTheLoge =>
-                    "Besitzt du das Wappen und insgesamt 3 Kelche oder Schlüssel in beliebiger Kombination, darfst du deinen alleinigen Sieg verkünden. Karten 'Trank der Macht' zählen nicht.",
-            },
-        }
+    fn tr_desc(self, lang: Lang) -> String {
+        lookup(lang, match self {
+            Item::Key                  => "item-key-desc",
+            Item::Goblet               => "item-goblet-desc",
+            Item::BagKey               => "item-bag-key-desc",
+            Item::BagGoblet            => "item-bag-goblet-desc",
+            Item::BlackPearl           => "item-black-pearl-desc",
+            Item::Dagger               => "item-dagger-desc",
+            Item::Gloves               => "item-gloves-desc",
+            Item::PoisonRing           => "item-poison-ring-desc",
+            Item::CastingKnives        => "item-casting-knives-desc",
+            Item::Whip                 => "item-whip-desc",
+            Item::Priviledge           => "item-priviledge-desc",
+            Item::Monocle              => "item-monocle-desc",
+            Item::BrokenMirror         => "item-broken-mirror-desc",
+            Item::Sextant              => "item-sextant-desc",
+            Item::Coat                 => "item-coat-desc",
+            Item::Tome                 => "item-tome-desc",
+            Item::CoatOfArmorOfTheLoge => "item-coat-of-armor-desc",
+        })
     }
 
-    fn tr_emoji(self) -> &'static str {
-        match self {
-            Item::Key                  => "🔑",
-            Item::Goblet               => "🏆",
-            Item::BagKey               => "🧳",
-            Item::BagGoblet            => "🧳",
-            Item::BlackPearl           => "🖤",
-            Item::Dagger               => "🗡️",
-            Item::Gloves               => "🧤",
-            Item::PoisonRing           => "💍",
-            Item::CastingKnives        => "🔪",
-            Item::Whip                 => "🪢",
-            Item::Priviledge           => "📜",
-            Item::Monocle              => "🧐",
-            Item::BrokenMirror         => "🪞",
-            Item::Sextant              => "🧭",
-            Item::Coat                 => "🧥",
-            Item::Tome                 => "📖",
-            Item::CoatOfArmorOfTheLoge => "🛡️",
-        }
+    fn tr_emoji(self) -> String {
+        lookup_emoji(match self {
+            Item::Key                  => "item-key-emoji",
+            Item::Goblet               => "item-goblet-emoji",
+            Item::BagKey               => "item-bag-key-emoji",
+            Item::BagGoblet            => "item-bag-goblet-emoji",
+            Item::BlackPearl           => "item-black-pearl-emoji",
+            Item::Dagger               => "item-dagger-emoji",
+            Item::Gloves               => "item-gloves-emoji",
+            Item::PoisonRing           => "item-poison-ring-emoji",
+            Item::CastingKnives        => "item-casting-knives-emoji",
+            Item::Whip                 => "item-whip-emoji",
+            Item::Priviledge           => "item-priviledge-emoji",
+            Item::Monocle              => "item-monocle-emoji",
+            Item::BrokenMirror         => "item-broken-mirror-emoji",
+            Item::Sextant              => "item-sextant-emoji",
+            Item::Coat                 => "item-coat-emoji",
+            Item::Tome                 => "item-tome-emoji",
+            Item::CoatOfArmorOfTheLoge => "item-coat-of-armor-emoji",
+        })
     }
 }
 
 impl Translate for Job {
-    fn tr_name(self, lang: Lang) -> &'static str {
-        match lang {
-            Lang::En => match self {
-                Job::Thug        => "Thug",
-                Job::GrandMaster => "Grandmaster",
-                Job::Bodyguard   => "Bodyguard",
-                Job::Duelist     => "Duelist",
-                Job::PoisonMixer => "Poison Mixer",
-                Job::Doctor      => "Doctor",
-                Job::Priest      => "Priest",
-                Job::Hypnotist   => "Hypnotist",
-                Job::Diplomat    => "Diplomat",
-                Job::Clairvoyant => "Clairvoyant",
-            },
-            Lang::De => match self {
-                Job::Thug        => "Schläger",
-                Job::GrandMaster => "Großmeister",
-                Job::Bodyguard   => "Leibwächter",
-                Job::Duelist     => "Duellant",
-                Job::PoisonMixer => "Giftmischer",
-                Job::Doctor      => "Doktor",
-                Job::Priest      => "Priester",
-                Job::Hypnotist   => "Hypnotiseur",
-                Job::Diplomat    => "Diplomat",
-                Job::Clairvoyant => "Hellseher",
-            },
-        }
+    fn tr_name(self, lang: Lang) -> String {
+        lookup(lang, match self {
+            Job::Thug        => "job-thug-name",
+            Job::GrandMaster => "job-grand-master-name",
+            Job::Bodyguard   => "job-bodyguard-name",
+            Job::Duelist     => "job-duelist-name",
+            Job::PoisonMixer => "job-poison-mixer-name",
+            Job::Doctor      => "job-doctor-name",
+            Job::Priest      => "job-priest-name",
+            Job::Hypnotist   => "job-hypnotist-name",
+            Job::Diplomat    => "job-diplomat-name",
+            Job::Clairvoyant => "job-clairvoyant-name",
+        })
     }
 
-    fn tr_desc(self, lang: Lang) -> &'static str {
-        match lang {
-            Lang::En => match self {
-                Job::Thug =>
-                    "As the attacker in a struggle, you get +1 to your result. Does not count when defending or supporting.",
-                Job::GrandMaster =>
-                    "As the defender in a struggle, you get +1 to your result. May be used even after support has been declared.",
-                Job::Bodyguard =>
-                    "When you support someone in a struggle, they get +1 to their result. Does not apply to yourself.",
-                Job::Duelist =>
-                    "Once: As attacker or defender, declare that nobody may support this struggle. You get +1 to your result.",
-                Job::PoisonMixer =>
-                    "Once: Appoint the winner of a struggle. Cannot be used if you are the attacker or defender.",
-                Job::Doctor =>
-                    "Once: Immediately after a struggle, prevent all its effects. The winner gains no information and may not search the loser's items.",
-                Job::Priest =>
-                    "Once: Before support is declared, stop an attack. If the attacker owns at least 2 items, they must give you one of their choice.",
-                Job::Hypnotist =>
-                    "As attacker: after support is declared, force one player to abstain. That player may not use items or jobs this struggle.",
-                Job::Diplomat =>
-                    "Once, on your turn: demand a specific item from any player. If they deny having it, they must show you all their items.",
-                Job::Clairvoyant =>
-                    "Once: Look at the draw pile, pick 2 items, reshuffle, then place them on top in any order.",
-            },
-            Lang::De => match self {
-                Job::Thug =>
-                    "Als Angreifer erhältst du +1 auf dein Kampfergebnis. Gilt nicht beim Verteidigen oder Unterstützen.",
-                Job::GrandMaster =>
-                    "Als Verteidiger erhältst du +1 auf dein Kampfergebnis. Kann auch nach der Unterstützungsankündigung eingesetzt werden.",
-                Job::Bodyguard =>
-                    "Unterstützt du jemanden im Kampf, erhält dieser +1 auf sein Kampfergebnis. Gilt nicht für dich selbst.",
-                Job::Duelist =>
-                    "Einmalig: Als Angreifer oder Verteidiger kannst du bestimmen, dass niemand unterstützen darf. Du erhältst +1 auf dein Kampfergebnis.",
-                Job::PoisonMixer =>
-                    "Einmalig: Bestimme den Sieger eines Kampfes. Gilt nicht, wenn du Angreifer oder Verteidiger bist.",
-                Job::Doctor =>
-                    "Einmalig: Verhindere direkt nach einem Kampf dessen Auswirkungen. Der Sieger erfährt nichts und darf nicht ins Gepäck schauen.",
-                Job::Priest =>
-                    "Einmalig: Verhindere vor der Unterstützungsankündigung einen Kampf. Hat der Angreifer mindestens 2 Gegenstände, muss er dir einen abgeben.",
-                Job::Hypnotist =>
-                    "Als Angreifer: Direkt nach der Unterstützungsankündigung kannst du einen Spieler zur Enthaltung zwingen. Er darf keine Gegenstände oder Berufe einsetzen.",
-                Job::Diplomat =>
-                    "Einmalig in deinem Zug: Verlange einen bestimmten Gegenstand von einem Mitspieler. Behauptet er, ihn nicht zu haben, muss er alle Gegenstände zeigen.",
-                Job::Clairvoyant =>
-                    "Einmalig: Schaue den Stapel an, wähle 2 Gegenstände, mische den Stapel und lege die gewählten Gegenstände in beliebiger Reihenfolge oben auf.",
-            },
-        }
+    fn tr_desc(self, lang: Lang) -> String {
+        lookup(lang, match self {
+            Job::Thug        => "job-thug-desc",
+            Job::GrandMaster => "job-grand-master-desc",
+            Job::Bodyguard   => "job-bodyguard-desc",
+            Job::Duelist     => "job-duelist-desc",
+            Job::PoisonMixer => "job-poison-mixer-desc",
+            Job::Doctor      => "job-doctor-desc",
+            Job::Priest      => "job-priest-desc",
+            Job::Hypnotist   => "job-hypnotist-desc",
+            Job::Diplomat    => "job-diplomat-desc",
+            Job::Clairvoyant => "job-clairvoyant-desc",
+        })
     }
 
-    fn tr_emoji(self) -> &'static str {
-        match self {
-            Job::Thug        => "💪",
-            Job::GrandMaster => "⚜️",
-            Job::Bodyguard   => "💂",
-            Job::Duelist     => "🤺",
-            Job::PoisonMixer => "⚗️",
-            Job::Doctor      => "🩺",
-            Job::Priest      => "🙏",
-            Job::Hypnotist   => "🌀",
-            Job::Diplomat    => "🎭",
-            Job::Clairvoyant => "🔮",
-        }
+    fn tr_emoji(self) -> String {
+        lookup_emoji(match self {
+            Job::Thug        => "job-thug-emoji",
+            Job::GrandMaster => "job-grand-master-emoji",
+            Job::Bodyguard   => "job-bodyguard-emoji",
+            Job::Duelist     => "job-duelist-emoji",
+            Job::PoisonMixer => "job-poison-mixer-emoji",
+            Job::Doctor      => "job-doctor-emoji",
+            Job::Priest      => "job-priest-emoji",
+            Job::Hypnotist   => "job-hypnotist-emoji",
+            Job::Diplomat    => "job-diplomat-emoji",
+            Job::Clairvoyant => "job-clairvoyant-emoji",
+        })
     }
 }
 

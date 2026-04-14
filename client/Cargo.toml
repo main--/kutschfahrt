@@ -24,6 +24,9 @@ gloo-utils = "0.2.0"
 gloo-console = "0.3"
 gloo-dialogs = "0.2.0"
 gloo-events = "0.2.0"
+fluent = "0.16"
+fluent-bundle = "0.15"
+unic-langid = "0.9"
 
 [features]
 

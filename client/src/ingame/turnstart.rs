@@ -167,19 +167,26 @@ pub fn my_turn_start(props: &MyTurnStartProps) -> Html {
             };
             Cow::from(lang.will_announce_victory(faction_str, &allies))
         }
-        WipMoveKind::OfferTrade => Cow::from(lang.will_offer_trade(
-            item.item().map(|x| x.tr_name(lang)).unwrap_or("?"),
-            &target.map(|p| p.to_string()).unwrap_or("?".to_owned()),
-        )),
+        WipMoveKind::OfferTrade => {
+            let item_name = item.item().map(|x| x.tr_name(lang)).unwrap_or_else(|| "?".to_owned());
+            Cow::from(lang.will_offer_trade(
+                &item_name,
+                &target.map(|p| p.to_string()).unwrap_or("?".to_owned()),
+            ))
+        },
         WipMoveKind::Attack => Cow::from(lang.will_attack(
             &target.map(|p| p.to_string()).unwrap_or("?".to_owned()),
         )),
         WipMoveKind::UseClairvoyant => Cow::from(lang.will_clairvoyant()),
-        WipMoveKind::UseDiplomat => Cow::from(lang.will_diplomat(
-            diplomat_item.tr_name(lang),
-            &target.map(|p| p.to_string()).unwrap_or("?".to_owned()),
-            item.item().map(|x| x.tr_name(lang)).unwrap_or("?"),
-        )),
+        WipMoveKind::UseDiplomat => {
+            let demand_name = diplomat_item.tr_name(lang);
+            let give_name = item.item().map(|x| x.tr_name(lang)).unwrap_or_else(|| "?".to_owned());
+            Cow::from(lang.will_diplomat(
+                &demand_name,
+                &target.map(|p| p.to_string()).unwrap_or("?".to_owned()),
+                &give_name,
+            ))
+        },
     };
 
     let reset = {

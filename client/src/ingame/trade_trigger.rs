@@ -137,7 +137,7 @@ fn sextant_ui(props: &SextantUiProps) -> Html {
             if !item_selections.is_empty() {
                 <ul>
                     { for item_selections.iter().map(|(p, i)| html! {
-                        <li>{ lang.sextant_passes(&p.to_string(), i.tr_name(lang)) }</li>
+                        <li>{ lang.sextant_passes(&p.to_string(), &i.tr_name(lang)) }</li>
                     })}
                 </ul>
             }

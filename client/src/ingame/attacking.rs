@@ -35,7 +35,7 @@ pub fn attacking(props: &AttackingProps) -> Html {
 
         &PerspectiveAttackState::FinishResolvingCredentials { target_faction, target_job } => html! {
             <>
-                <p class="attack-text">{lang.see_faction_job(&opponent.to_string(), faction_name(target_faction, lang), target_job.tr_name(lang))}</p>
+                <p class="attack-text">{lang.see_faction_job(&opponent.to_string(), faction_name(target_faction, lang), &target_job.tr_name(lang))}</p>
                 <DoneLookingBtn />
             </>
         },
@@ -267,7 +267,7 @@ fn buff_score(x: BuffScore) -> String {
 fn buff_source_name(source: &BuffSource, lang: Lang) -> String {
     match source {
         BuffSource::Item(item) => format!("{} ({})", lang.use_item(), item.tr_name(lang)),
-        BuffSource::Job(job)   => lang.use_job(job.tr_name(lang)),
+        BuffSource::Job(job)   => lang.use_job(&job.tr_name(lang)),
     }
 }
 
@@ -311,7 +311,7 @@ pub fn items_and_jobs(props: &ItemsAndJobsProps) -> Html {
                                 </>
                             }
                         } else {
-                            html! { <CommandButton text={lang.use_job(p.you.job.tr_name(lang))} command={Some(Command::ItemOrJob { buff: Some(BuffSource::Job(p.you.job)), target: None })} /> }
+                            html! { <CommandButton text={lang.use_job(&p.you.job.tr_name(lang))} command={Some(Command::ItemOrJob { buff: Some(BuffSource::Job(p.you.job)), target: None })} /> }
                         }}
 
                         <CommandButton text={lang.pass_items()} command={Some(Command::ItemOrJob { buff: None, target: None })} />
