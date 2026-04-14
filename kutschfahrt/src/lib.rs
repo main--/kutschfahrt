@@ -268,10 +268,16 @@ impl State {
                                 return Err(CommandError::YouHaveAlreadyPassed);
                             }
 
-                            let mut defp = s.p.player_mut(actor);
-                            defp.use_job(Job::Priest)?;
+                            let attacker_items = s.p.player(attacker).items.len();
+                            s.p.player_mut(actor).use_job(Job::Priest)?;
 
-                            TurnState::Attacking { attacker, defender, state: AttackState::PayingPriest { priest: actor } }
+                            // Payment only required when attacker holds ≥2 items (rules).
+                            // With fewer items, skip PayingPriest to avoid a soft-lock.
+                            if attacker_items >= 2 {
+                                TurnState::Attacking { attacker, defender, state: AttackState::PayingPriest { priest: actor } }
+                            } else {
+                                TurnState::WaitingForEndTurn(attacker)
+                            }
                         },
                         Command::UsePriest { priest: false } => {
                             passed.insert(actor);
